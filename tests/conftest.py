@@ -23,6 +23,18 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
     monkeypatch.setenv("TEMP", str(tmp_path / "tmpdir"))
     monkeypatch.setenv("TMP", str(tmp_path / "tmpdir"))
+    # C:\Windows and C:\ProgramData hold real temp files and crash reports on a Windows
+    # runner. Point DriveMind's lookups at the sandbox; the process env keeps the real
+    # SystemRoot, which Python itself needs on Windows.
+    from drivemind import cleaner
+    real_env_map = cleaner.env_map
+
+    def sandboxed_env_map(env=None, home=None):
+        m = real_env_map(env, home)
+        m["SYSTEMROOT"] = str(tmp_path / "Windows")
+        m["PROGRAMDATA"] = str(tmp_path / "ProgramData")
+        return m
+    monkeypatch.setattr(cleaner, "env_map", sandboxed_env_map)
     from drivemind import db
     db.close_all()
     yield home

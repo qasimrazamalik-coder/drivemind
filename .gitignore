@@ -14,3 +14,4 @@ mobile/web-build/
 .skipper/*
 !.skipper/receipts/
 .claude/
+.skipper/

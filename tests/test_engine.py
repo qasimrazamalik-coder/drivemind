@@ -106,7 +106,7 @@ def test_organize_plan_decisions_and_safety(isolated, tmp_path):
     p = plan_organize(desk, root, s, use_ai=False)
     by_src = {Path(a.src).name: a for a in p.actions}
     assert "desktop.ini" not in by_src                       # system file never touched
-    assert by_src["Invoice_Acme_March.pdf"].dst.endswith("Work/Finance/Invoice_Acme_March.pdf")
+    assert Path(by_src["Invoice_Acme_March.pdf"].dst).as_posix().endswith("Work/Finance/Invoice_Acme_March.pdf")
     assert by_src["my-app"].category == "Projects"           # project moved whole
     assert by_src["IMG-20261101-WA0003.jpg"].dst.endswith("2026-11-01 WhatsApp photo 0003.jpg")
     assert "_versions" in by_src["report.docx"].dst           # older version stacked
@@ -183,7 +183,7 @@ def test_learner_takes_over_after_feedback(isolated, tmp_path):
     make(isolated / "Desktop" / "acme_brief_new.pdf")
     p = plan_organize(isolated / "Desktop", root, Settings(), use_ai=False)
     a = p.actions[0]
-    assert a.dst.endswith("Clients/Acme/acme_brief_new.pdf") and a.category == "Learned"
+    assert Path(a.dst).as_posix().endswith("Clients/Acme/acme_brief_new.pdf") and a.category == "Learned"
 
 
 def test_ai_used_only_for_unsure_files(isolated, tmp_path):
@@ -206,7 +206,7 @@ def test_ai_used_only_for_unsure_files(isolated, tmp_path):
     p = plan_organize(isolated / "Desktop", tmp_path / "Org", Settings(), use_ai=None, ai_client=fake)
     assert fake.seen == ["logo_final.qqq"]                    # confident files never go to the AI
     by = {Path(a.src).name: a for a in p.actions}
-    assert by["logo_final.qqq"].dst.endswith("Design/Logos/logo_final.qqq")
+    assert Path(by["logo_final.qqq"].dst).as_posix().endswith("Design/Logos/logo_final.qqq")
     assert by["logo_final.qqq"].reason.startswith("AI:")
 
 
