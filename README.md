@@ -28,6 +28,7 @@ DriveMind organizes your files, clears caches and temporary junk, finds duplicat
 | **Dev junk** | `node_modules`, `.venv`, `build`, `.next`, `.gradle` and similar folders in projects idle for 60+ days. Each one is shown with the command that brings it back. |
 | **User folders** | Moves Desktop, Downloads, Documents, Pictures and Videos to another drive, then re-points Windows (as Explorer's Location > Move does), so your apps follow. |
 | **History** | Undo any plan, and "Where did my file go?" search across everything DriveMind has moved. |
+| **Android app** | Pair by QR code over Wi-Fi. See drive health and alerts, approve, reject or undo plans, "Tidy now", Yes / Ask / No switches and mode. Everything syncs with the PC instantly. See `mobile/README.md`. |
 | **What is this folder?** | Built-in knowledge of about 30 common folders (WinSxS, node_modules, Installer…), with the local AI as a fallback. |
 
 ## Settings: Yes / Ask / No
@@ -52,6 +53,7 @@ AI guesses below 80% confidence always wait for you, whatever the mode.
 - Files that are locked or in use are skipped, never forced.
 - Every completed step is written to the journal before the next one starts, so undo works even after a crash.
 - The local API answers only on `127.0.0.1`. It requires an `X-DriveMind` header, so other websites cannot drive it, and it checks the Host header to block DNS rebinding.
+- Phones use a separate `/m` API on your Wi-Fi. Every call needs that phone's own token (only a hash is stored), and you can remove a phone at any time. The PC listens on Wi-Fi only once a phone is paired.
 
 ## Command line
 
@@ -69,7 +71,8 @@ drivemind set organize_moves yes        also: cache.pip no, temp.installers ask
 drivemind rule "anything with invoice from Downloads goes to Work/Invoices"
 drivemind tag-temp file.zip --days 7
 drivemind shell install|uninstall|autostart-on|autostart-off
-drivemind serve                         dashboard + background guardian
+drivemind serve                         dashboard + background guardian (+ phone sync once paired)
+drivemind pair                          pair a phone without the dashboard (prints a code)
 ```
 
 ## Architecture
@@ -98,14 +101,17 @@ drivemind/
   winshell.py    Explorer right-click menu, autostart (HKCU only)
   api.py         local FastAPI server
   cli.py         command line
+  devices.py     phone pairing tokens, QR code, Wi-Fi address
   web/           dashboard (no build step, no external requests)
+mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 ```
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest -q          # 28 tests, run on Windows and Ubuntu in CI
+pytest -q          # 35 tests, run on Windows and Ubuntu in CI
+cd mobile && npm install && npx tsc --noEmit   # typecheck the Android app
 ```
 
 ## Roadmap (next)
@@ -114,7 +120,8 @@ pytest -q          # 28 tests, run on Windows and Ubuntu in CI
 - Elevated helper service for MFT fast-scan and the admin-only caches.
 - WSL / Docker / Android SDK mover and `.vhdx` compactor.
 - Semantic search over file contents, screenshot OCR, and photo albums (CLIP).
-- Git-safe project archiver, SSD SMART health, and phone alerts.
+- Git-safe project archiver and SSD SMART health.
+- Phone push alerts when the app is closed (FCM), and phone access away from home.
 
 ## License
 

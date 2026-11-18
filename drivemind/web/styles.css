@@ -147,6 +147,9 @@ tr.dim td { opacity: .55; }
 .explain dt { color: var(--muted); }
 .explain dd { margin: 0; }
 
+.pair { display: flex; gap: 20px; align-items: center; margin: 8px 0 4px; flex-wrap: wrap; }
+.pair svg { border-radius: 10px; width: 210px; height: auto; flex: none; }
+.pair p { margin: 0 0 6px; }
 .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel-2); border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px; opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; max-width: 420px; }
 .toast.on { opacity: 1; transform: none; }
 .toast.err { border-color: var(--bad); }

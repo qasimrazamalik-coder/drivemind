@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "DriveMind",
+    "slug": "drivemind",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "drivemind",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0e1013",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#0e1013" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.qasimrazamalik.drivemind" },
+    "android": {
+      "package": "com.qasimrazamalik.drivemind",
+      "adaptiveIcon": {
+        "backgroundColor": "#0e1013",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["CAMERA", "POST_NOTIFICATIONS"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
+    "plugins": [
+      "expo-router",
+      ["expo-camera", { "cameraPermission": "Allow DriveMind to scan the pairing code shown on your PC" }],
+      ["expo-notifications", { "color": "#5eead4" }],
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

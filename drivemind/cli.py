@@ -252,13 +252,19 @@ def cmd_serve(args) -> None:
     import uvicorn
     from .api import app
     from .service import Guardian
+    from . import devices
     if not args.no_guardian:
         Guardian().start()
+    # Listen on the home Wi-Fi only when a phone is (or is being) paired.
+    lan = args.lan or devices.any_paired()
+    app.state.lan, app.state.port = lan, args.port
     url = f"http://127.0.0.1:{args.port}"
     print(f"DriveMind dashboard: {url}")
+    if lan:
+        print(f"Phone sync on: http://{devices.lan_ip()}:{args.port}  (only paired phones can connect)")
     if not args.no_browser:
         webbrowser.open(url)
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0" if lan else "127.0.0.1", port=args.port, log_level="warning")
 
 
 def cmd_watch(args) -> None:
@@ -278,6 +284,15 @@ def cmd_tag_temp(args) -> None:
     exp = tag_temporary(Path(args.path), args.days)
     print(f"{args.path} is temporary until {time.strftime('%Y-%m-%d %H:%M', time.localtime(exp))}. "
           "DriveMind will ask once, then move it to quarantine.")
+
+
+def cmd_pair(args) -> None:
+    from . import devices
+    r = devices.pair(args.name, args.port)
+    print("Open the DriveMind app on your phone > Pair > Enter code, and type:\n")
+    print(f"    {r['code']}\n")
+    print("Then restart `drivemind serve` (it now listens on your Wi-Fi for paired phones).")
+    print("Windows may ask to allow Python through the firewall: choose Private networks.")
 
 
 def cmd_shell(args) -> None:
@@ -369,7 +384,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=7878)
     p.add_argument("--no-browser", action="store_true")
     p.add_argument("--no-guardian", action="store_true")
+    p.add_argument("--lan", action="store_true", help="accept paired phones on the home Wi-Fi")
     p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser("pair", help="pair an Android phone (prints a code; the dashboard shows a QR)")
+    p.add_argument("--name", default="Android phone")
+    p.add_argument("--port", type=int, default=7878)
+    p.set_defaults(fn=cmd_pair)
     p = sub.add_parser("tag-temp", help="mark a file or folder as temporary")
     p.add_argument("path")
     p.add_argument("--days", type=float, default=7)

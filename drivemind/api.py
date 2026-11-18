@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, db, jobs
+from . import __version__, db, devices, jobs
 from .advisor import advise
 from .cleaner import cache_report, plan_cache_clean, plan_temp_clean, tag_temporary, temp_report
 from .config import OPTION_INFO, Decision, Mode, Settings
@@ -41,8 +41,31 @@ app = FastAPI(title="DriveMind", version=__version__)
 _last_scan: Dict[str, Dict] = {}
 
 
+MOBILE_CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "600",
+}
+
+
 @app.middleware("http")
 async def local_only(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/m/"):
+        # Phone API: reachable over Wi-Fi, but every call needs a paired device's token.
+        # CORS is opened only here (bearer tokens cannot be forged by other websites).
+        if request.method == "OPTIONS":
+            return JSONResponse({}, headers=MOBILE_CORS)
+        auth = request.headers.get("authorization", "")
+        token = auth[7:] if auth.lower().startswith("bearer ") else None
+        if not devices.verify(token):
+            return JSONResponse({"detail": "This phone is not paired with DriveMind"}, status_code=401,
+                                headers=MOBILE_CORS)
+        resp = await call_next(request)
+        for k, v in MOBILE_CORS.items():
+            resp.headers[k] = v
+        return resp
     host = (request.headers.get("host") or "").split(":")[0]
     testing = os.environ.get("DRIVEMIND_TESTING") == "1" and host == "testserver"
     if host not in ALLOWED_HOSTS and not testing:
@@ -408,6 +431,93 @@ def notices_read():
     conn.execute("UPDATE notices SET read=1 WHERE read=0")
     conn.commit()
     return {"ok": True}
+
+
+# ------------------------------------------------------------ phone pairing ---
+class PairReq(BaseModel):
+    name: str = "Android phone"
+
+
+def ensure_lan() -> bool:
+    """Start listening on the Wi-Fi address too (no restart), so a just-paired phone can connect."""
+    if getattr(app.state, "lan", False) or not hasattr(app.state, "port"):
+        return getattr(app.state, "lan", False)
+    import threading
+    import uvicorn
+    ip = devices.lan_ip()
+    if ip.startswith("127."):
+        return False
+    server = uvicorn.Server(uvicorn.Config(app, host=ip, port=app.state.port, log_level="warning"))
+    threading.Thread(target=server.run, name="drivemind-lan", daemon=True).start()
+    app.state.lan = True
+    return True
+
+
+@app.post("/api/pair")
+def pair_phone(req: PairReq):
+    """Localhost only (the middleware blocks LAN hosts on /api): makes a QR code for the phone."""
+    out = devices.pair(req.name, getattr(app.state, "port", devices.DEFAULT_PORT))
+    out["lan_enabled"] = ensure_lan()
+    return out
+
+
+@app.get("/api/devices")
+def paired_devices():
+    return {"devices": devices.list_devices(), "lan_enabled": getattr(app.state, "lan", False)}
+
+
+@app.delete("/api/devices/{dev_id}")
+def unpair(dev_id: str):
+    if not devices.remove(dev_id):
+        raise HTTPException(404, "no such device")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- phone API ---
+def tidy_now():
+    """The phone's 'Tidy now' button: runs only what your settings already allow (Yes items)."""
+    s = Settings.load()
+    total = {"done": 0, "failed": 0, "freed_bytes": 0, "waiting": 0, "plans": []}
+    for plan in (plan_cache_clean(s, scheduled=True), plan_temp_clean(s)):
+        r = apply_plan(plan, s)
+        for k in ("done", "failed", "freed_bytes"):
+            total[k] += r[k]
+        waiting = plan.summary()["waiting"]
+        total["waiting"] += waiting
+        if plan.actions:
+            plan.save()
+            total["plans"].append({"id": plan.id, "title": plan.title, "waiting": waiting})
+    return total
+
+
+def pending_plans():
+    """Plans with changes still waiting for a decision — what the phone shows first."""
+    return [p for p in Plan.recent(30) if p["summary"]["waiting"] and p["status"] == "proposed"]
+
+
+def mobile_hello():
+    st = status()
+    sysd = next((d for d in st["drives"] if d["drive"] == st["system_drive"]), st["drives"][0] if st["drives"] else None)
+    import platform
+    return {"pc": platform.node(), "version": __version__, "drive": sysd, "drives": st["drives"],
+            "mode": st["mode"], "unread_notices": st["unread_notices"], "waiting_plans": len(pending_plans())}
+
+
+m = FastAPI()  # mounted at /m — same handlers, token-protected by the middleware
+for path, fn, methods in [
+    ("/hello", mobile_hello, ["GET"]), ("/status", status, ["GET"]), ("/advice", advice, ["GET"]),
+    ("/notices", notices, ["GET"]), ("/notices/read", notices_read, ["POST"]),
+    ("/plans", plans, ["GET"]), ("/plans/pending", pending_plans, ["GET"]), ("/plans/{plan_id}", get_plan, ["GET"]),
+    ("/plans/{plan_id}/decide", decide, ["POST"]), ("/plans/{plan_id}/apply", apply, ["POST"]),
+    ("/plans/{plan_id}/undo", undo, ["POST"]), ("/plans/clean", new_clean, ["POST"]),
+    ("/plans/temp", new_temp, ["POST"]), ("/tidy", tidy_now, ["POST"]),
+    ("/caches", caches, ["GET"]), ("/temp/rules", temp_rules, ["GET"]),
+    ("/settings", get_settings, ["GET"]), ("/settings/mode", set_mode, ["PUT"]),
+    ("/settings/option", set_option, ["PUT"]), ("/settings/cache", set_cache_choice, ["PUT"]),
+    ("/settings/temp", set_temp_choice, ["PUT"]), ("/where", where, ["GET"]),
+]:
+    m.add_api_route(path, fn, methods=methods)
+app.mount("/m", m)
 
 
 # -------------------------------------------------------------------- web ---

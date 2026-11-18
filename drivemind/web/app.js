@@ -328,7 +328,25 @@ loaders.settings = async () => {
     await api("/api/settings", "PUT", patch); toast("Saved");
   });
   loadRules();
+  loadDevices();
 };
+async function loadDevices() {
+  const d = await api("/api/devices");
+  $("#devices").innerHTML = d.devices.length ? `<div class="list">${d.devices.map((x) => `<div class="li"><div><b>${esc(x.name)}</b>
+    <div class="meta">paired ${when(x.created)} · ${x.last_seen ? "last seen " + when(x.last_seen) : "not connected yet"}</div></div>
+    <button class="btn danger sm" data-unpair="${esc(x.id)}">Remove</button></div>`).join("")}</div>` : "";
+  $$("[data-unpair]").forEach((b) => b.onclick = async () => { await api(`/api/devices/${b.dataset.unpair}`, "DELETE"); toast("Phone removed — it can no longer connect"); loadDevices(); });
+}
+$("#pair-btn").onclick = (e) => busy(e.target, async () => {
+  const r = await api("/api/pair", "POST", { name: "Android phone" });
+  // qr_svg is generated locally by DriveMind (segno), not user content
+  $("#pair-out").innerHTML = `<div class="pair">${r.qr_svg || ""}<div><p><b>Scan with the DriveMind app</b></p>
+    <p class="muted">Or tap “Enter code” in the app and type:</p><p class="path">${esc(r.code)}</p>
+    ${r.lan_enabled ? "" : `<p style="color:var(--warn)">Phone sync is not listening on Wi-Fi yet. Restart DriveMind to turn it on.</p>`}
+    <p class="muted">Windows may ask to allow Python on the network — choose Private networks.</p></div></div>`;
+  loadDevices();
+});
+
 async function loadRules() {
   const rs = await api("/api/rules");
   $("#rules").innerHTML = rs.length ? `<div class="list">${rs.map((r, i) => `<div class="li"><div><b>${esc(r.name)}</b><div class="meta">→ ${esc(r.destination)}</div></div>
