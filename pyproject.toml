@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drivemind"
+version = "0.1.0"
+description = "AI Drive Guardian for Windows: organize files, clean caches and temp junk, watch drive C:, every action previewed and undoable."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Qasim Raza Malik" }]
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+watch = ["watchdog>=4.0"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+drivemind = "drivemind.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["drivemind*"]
+
+[tool.setuptools.package-data]
+drivemind = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

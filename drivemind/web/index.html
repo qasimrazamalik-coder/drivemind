@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveMind</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>DriveMind</div>
+    <nav id="nav">
+      <a data-view="home" class="on">Home</a>
+      <a data-view="organize">Organize</a>
+      <a data-view="caches">Cache Cleaner</a>
+      <a data-view="temp">Temporary files</a>
+      <a data-view="more">Duplicates &amp; dev</a>
+      <a data-view="folders">User folders</a>
+      <a data-view="history">History</a>
+      <a data-view="settings">Settings</a>
+    </nav>
+    <div class="side-foot"><span id="mode-pill" class="pill">balanced</span><span id="ver"></span></div>
+  </aside>
+
+  <main id="main">
+    <!-- HOME -->
+    <section data-page="home" class="page on">
+      <header class="head"><h1>Drive health</h1><p class="sub" id="home-sub">Checking your drives…</p></header>
+      <div class="grid2">
+        <div class="card hero" id="hero"></div>
+        <div class="card">
+          <h2>Top fixes</h2>
+          <div id="tips" class="tips"><p class="muted">Looking for the biggest wins…</p></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row-head"><h2>What is eating space</h2>
+          <div class="inline"><input id="scan-root" class="input" spellcheck="false"><button class="btn" id="scan-btn">Scan</button></div></div>
+        <div id="scan-out"><p class="muted">Scan a drive or folder to see its biggest folders and files. Cloud-only OneDrive files are never downloaded.</p></div>
+      </div>
+      <div class="card"><h2>All drives</h2><div id="drives" class="drives"></div></div>
+      <div class="card"><div class="row-head"><h2>Alerts</h2><button class="btn ghost sm" id="read-btn">Mark read</button></div><div id="notices"></div></div>
+    </section>
+
+    <!-- ORGANIZE -->
+    <section data-page="organize" class="page">
+      <header class="head"><h1>Organize</h1><p class="sub">DriveMind proposes where every file goes. Nothing moves until you approve it or your settings say Yes.</p></header>
+      <div class="card form">
+        <label>Folder to tidy<input id="org-src" class="input" spellcheck="false"></label>
+        <label>Organized root<input id="org-root" class="input" spellcheck="false" placeholder="e.g. D:\Organized"></label>
+        <label>Layout
+          <select id="org-preset" class="input">
+            <option value="developer">Developer</option><option value="student">Student</option>
+            <option value="freelancer">Freelancer</option><option value="by_type">By file type</option>
+            <option value="minimal">Minimal</option><option value="johnny_decimal">Johnny Decimal</option>
+          </select></label>
+        <div class="form-actions"><button class="btn" id="org-btn">Build plan</button></div>
+      </div>
+      <div id="org-plan"></div>
+    </section>
+
+    <!-- CACHES -->
+    <section data-page="caches" class="page">
+      <header class="head"><h1>Cache Cleaner</h1><p class="sub">Yes clears it automatically, Ask shows the size and waits, No never touches it.</p></header>
+      <div class="card"><div class="row-head"><h2 id="cache-total">Caches</h2><button class="btn" id="cache-btn">Review a clean</button></div>
+        <table class="tbl" id="cache-tbl"></table></div>
+      <div id="cache-plan"></div>
+    </section>
+
+    <!-- TEMP -->
+    <section data-page="temp" class="page">
+      <header class="head"><h1>Temporary files</h1><p class="sub">Leftovers from downloads, installers, Office and builds. Deletes go to a 30-day quarantine first.</p></header>
+      <div class="card"><div class="row-head"><h2>Temp junk rules</h2><button class="btn" id="temp-btn">Find temp junk</button></div>
+        <table class="tbl" id="temp-tbl"></table></div>
+      <div id="temp-plan"></div>
+    </section>
+
+    <!-- MORE -->
+    <section data-page="more" class="page">
+      <header class="head"><h1>Duplicates &amp; dev junk</h1><p class="sub">Exact copies (checked by content, not name) and regenerable folders in projects you have not touched for a while.</p></header>
+      <div class="grid2">
+        <div class="card"><h2>Duplicate files</h2><p class="muted">Keeps the copy in the most organized place; the rest go to quarantine.</p>
+          <input id="dupe-roots" class="input" placeholder="Folders, separated by ;  (empty = your user folders)" spellcheck="false">
+          <div class="form-actions"><button class="btn" id="dupe-btn">Find duplicates</button></div></div>
+        <div class="card"><h2>Old project dependencies</h2><p class="muted">node_modules, .venv, build, .next, .gradle… each restorable with one command.</p>
+          <input id="dev-roots" class="input" placeholder="Project folders, separated by ;" spellcheck="false">
+          <div class="form-actions"><button class="btn" id="dev-btn">Find dev junk</button></div></div>
+      </div>
+      <div id="more-plan"></div>
+      <div class="card"><h2>What is this folder?</h2>
+        <div class="inline"><input id="explain-path" class="input" placeholder="Paste any folder path" spellcheck="false"><button class="btn ghost" id="explain-btn">Explain</button></div>
+        <div id="explain-out"></div></div>
+    </section>
+
+    <!-- FOLDERS -->
+    <section data-page="folders" class="page">
+      <header class="head"><h1>User folders</h1><p class="sub">Move Desktop, Downloads, Documents, Pictures and Videos to another drive. Windows and your apps follow automatically.</p></header>
+      <div class="card"><table class="tbl" id="folder-tbl"></table>
+        <div class="inline top"><input id="folder-target" class="input" placeholder="New location, e.g. D:\" spellcheck="false"><button class="btn" id="folder-btn">Plan the move</button></div></div>
+      <div id="folder-plan"></div>
+    </section>
+
+    <!-- HISTORY -->
+    <section data-page="history" class="page">
+      <header class="head"><h1>History</h1><p class="sub">Every change is journaled. Undo a whole plan, or find any file DriveMind moved.</p></header>
+      <div class="card"><h2>Where did my file go?</h2>
+        <div class="inline"><input id="where-q" class="input" placeholder="File name, e.g. report.pdf" spellcheck="false"><button class="btn ghost" id="where-btn">Search</button></div>
+        <div id="where-out"></div></div>
+      <div class="card"><h2>Plans</h2><div id="plans"></div></div>
+      <div id="hist-plan"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section data-page="settings" class="page">
+      <header class="head"><h1>Settings</h1><p class="sub">One tap sets every switch; change any single one after.</p></header>
+      <div class="modes" id="modes"></div>
+      <div class="card"><h2>Switches</h2><table class="tbl" id="opt-tbl"></table></div>
+      <div class="grid2">
+        <div class="card form" id="prefs"></div>
+        <div class="card"><h2>Your rules</h2><p class="muted">Write a rule as a sentence, e.g. <em>anything with invoice from Downloads goes to Work/Invoices</em>.</p>
+          <div class="inline"><input id="rule-text" class="input" spellcheck="false"><button class="btn ghost" id="rule-btn">Add</button></div>
+          <div id="rules"></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
