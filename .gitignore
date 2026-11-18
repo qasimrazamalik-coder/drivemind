@@ -13,3 +13,4 @@ mobile/web-build/
 .claude/.skipper-*
 .skipper/*
 !.skipper/receipts/
+.claude/
