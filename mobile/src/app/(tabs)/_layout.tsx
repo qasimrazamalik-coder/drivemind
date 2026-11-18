@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AppState, ColorValue } from "react-native";
 
 import { checkAlerts, setupNotifications } from "../../lib/alerts";
+import { enableBackgroundAlerts } from "../../lib/background";
 import { useConn } from "../../lib/conn";
 import { C } from "../../lib/theme";
 
@@ -17,7 +18,9 @@ export default function TabLayout() {
   useEffect(() => {
     if (!api) return;
     let alive = true;
-    setupNotifications().catch(() => {});
+    setupNotifications()
+      .then((ok) => ok && enableBackgroundAlerts())
+      .catch(() => {});
     const tick = () => {
       if (alive && AppState.currentState === "active") checkAlerts(api).catch(() => {});
     };
@@ -45,6 +48,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: icon("donut-large") }} />
       <Tabs.Screen name="plans" options={{ title: "Review", tabBarIcon: icon("fact-check") }} />
+      <Tabs.Screen name="search" options={{ title: "Search", tabBarIcon: icon("search") }} />
       <Tabs.Screen name="cleaner" options={{ title: "Cleaner", tabBarIcon: icon("cleaning-services") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: icon("tune") }} />
     </Tabs>

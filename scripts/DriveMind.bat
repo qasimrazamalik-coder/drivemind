@@ -6,4 +6,6 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m drivemind serve
+start "" ".venv\Scripts\pythonw.exe" -m drivemind tray
+timeout /t 3 /nobreak >nul
+start "" http://127.0.0.1:7878

@@ -6,7 +6,8 @@ The phone companion for DriveMind. It connects to DriveMind on your PC over your
 - **Review**: changes your PC proposed. Tick them, then approve and apply, reject, or undo a whole plan.
 - **Cleaner**: a Yes / Ask / No switch for every cache, plus "Review a cache clean" and "Find temporary junk".
 - **Settings**: Safe / Balanced / Autopilot mode and every switch. Changes apply on the PC straight away.
-- **Alerts**: while the app is open, new PC alerts (for example "C: is 90% full") arrive as phone notifications.
+- **Search**: find a file on the PC by what is inside it, its type and its month or year.
+- **Alerts**: new PC alerts (for example "C: is 90% full" or "Disk check: needs attention") arrive as phone notifications. While the app is closed, Android checks about every 15 minutes, when the phone is on the same Wi-Fi and has battery.
 
 ## Pair the phone
 
@@ -38,15 +39,16 @@ Package name: `com.qasimrazamalik.drivemind`. Cleartext HTTP is enabled through 
 ```text
 src/app/_layout.tsx          stack + providers
 src/app/pair.tsx             QR scan / typed code / drivemind://pair deep link
-src/app/(tabs)/              Home, Review, Cleaner, Settings
+src/app/(tabs)/              Home, Review, Search, Cleaner, Settings
 src/app/plan/[id].tsx        review one plan
 src/components/              UI kit (Card, Btn, Seg, Ring, Pill) and PlanView
 src/lib/api.ts               typed client for the PC's /m API
 src/lib/conn.tsx             saved connection + data hook
 src/lib/alerts.ts            local notifications for PC alerts
+src/lib/background.ts        background alert check (expo-background-task)
 ```
 
 ## Not yet
 
-- Alerts while the app is closed. That needs push through Firebase Cloud Messaging (FCM) or background tasks; today alerts arrive while the app is open.
+- Instant alerts while the app is closed. Today the background check runs about every 15 minutes; instant alerts need push through Firebase Cloud Messaging (FCM).
 - Access away from home Wi-Fi. That needs a relay or a VPN such as Tailscale.

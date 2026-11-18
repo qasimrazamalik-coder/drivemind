@@ -173,6 +173,12 @@ loaders.home = async () => {
     $$("[data-tip]").forEach((b) => b.onclick = () => show({ clean_caches: "caches", clean_dev_junk: "more", move_user_folders: "folders" }[b.dataset.tip] || "home"));
   }).catch(() => ($("#tips").innerHTML = `<p class="muted">Could not build tips.</p>`));
   api("/api/scan/latest").then((s) => s.root && renderScan(s));
+  api("/api/ssd").then((disks) => {
+    $("#ssd").innerHTML = disks.length ? `<div class="list">${disks.map((d) => `<div class="li"><div><b>${esc(d.name)}</b>
+      <div class="meta">${esc([d.media, d.bus, d.size_gb ? d.size_gb + " GB" : ""].filter(Boolean).join(" · "))}</div>
+      <div class="meta">${esc(d.notes.join(" · "))}</div></div><span class="pill ${d.status === "good" ? "yes" : "ask"}">${esc(d.status)}</span></div>`).join("")}</div>`
+      : `<p class="muted">Disk health counters are read from Windows. None were reported here.</p>`;
+  }).catch(() => ($("#ssd").innerHTML = `<p class="muted">Could not read disk health.</p>`));
 };
 
 async function loadNotices() {
@@ -199,6 +205,30 @@ $("#scan-btn").onclick = (e) => busy(e.target, async () => {
     const j = await api(`/api/jobs/${job}`);
     if (j.status === "done") return renderScan(j.result);
     if (j.status !== "running") throw new Error(j.error || "Scan failed");
+  }
+});
+
+// ----------------------------------------------------------------- search --
+async function runSearch() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  const hits = await api(`/api/search?q=${encodeURIComponent(q)}`);
+  $("#q-out").innerHTML = `<div class="card">${hits.length ? `<div class="list">${hits.map((h) => `<div class="li"><div>
+    <b>${esc(h.name)}</b><div class="path muted">${esc(h.path)}</div>
+    ${h.snippet ? `<div class="meta">${esc(h.snippet).replace(/\[(.*?)\]/g, "<mark>$1</mark>")}</div>` : ""}</div>
+    <span class="num">${human(h.size)}<br>${new Date(h.mtime * 1000).toLocaleDateString()}</span></div>`).join("")}</div>`
+    : `<p class="muted">Nothing found. If you have not indexed yet, press “Refresh index now”.</p>`}</div>`;
+}
+$("#q-btn").onclick = (e) => busy(e.target, runSearch);
+$("#q").addEventListener("keydown", (e) => e.key === "Enter" && runSearch().catch((x) => toast(x.message, true)));
+$("#idx-btn").onclick = (e) => busy(e.target, async () => {
+  const { job } = await api("/api/search/index", "POST", { roots: [] });
+  $("#idx-status").textContent = "Indexing your folders…";
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 800));
+    const j = await api(`/api/jobs/${job}`);
+    if (j.status === "done") { $("#idx-status").textContent = `${j.result.total.toLocaleString()} files searchable · ${j.result.added} new, ${j.result.updated} changed`; return; }
+    if (j.status !== "running") throw new Error(j.error || "Indexing failed");
   }
 });
 
@@ -255,6 +285,15 @@ $("#temp-btn").onclick = (e) => busy(e.target, async () => renderPlan("#temp-pla
 const roots = (sel) => $(sel).value.split(";").map((s) => s.trim()).filter(Boolean);
 $("#dupe-btn").onclick = (e) => busy(e.target, async () => renderPlan("#more-plan", await api("/api/plans/duplicates", "POST", { roots: roots("#dupe-roots") })));
 $("#dev-btn").onclick = (e) => busy(e.target, async () => renderPlan("#more-plan", await api("/api/plans/devjunk", "POST", { roots: roots("#dev-roots") })));
+$("#arch-btn").onclick = (e) => busy(e.target, async () => renderPlan("#more-plan", await api("/api/plans/archive", "POST", { roots: roots("#arch-roots") })));
+$("#devdata-btn").onclick = (e) => busy(e.target, async () => {
+  const rows = await api("/api/devdata");
+  $("#devdata").innerHTML = rows.length ? rows.map((r) => `<div class="li" style="display:block;margin-top:8px">
+    <div class="row-head" style="margin:0 0 6px"><b>${esc(r.name)}</b><span class="num">${human(r.size)}</span></div>
+    <ol class="steps">${r.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
+    ${r.compact ? `<p class="meta">${esc(r.compact.why)} ${esc(r.compact.how)}</p>${r.compact.scripts.map((sc) => `<pre class="code">${esc(sc)}</pre>`).join("")}` : ""}</div>`).join("")
+    : `<p class="muted">No WSL, Docker, Android, Gradle, Ollama or Steam data found on this PC.</p>`;
+});
 $("#explain-btn").onclick = (e) => busy(e.target, async () => {
   const r = await api("/api/explain", "POST", { path: $("#explain-path").value.trim() });
   $("#explain-out").innerHTML = r.source === "known"
@@ -358,4 +397,6 @@ $("#rule-btn").onclick = (e) => busy(e.target, async () => {
   $("#rule-text").value = ""; toast("Rule added"); loadRules();
 });
 
+// mode and version in the sidebar are correct on every page, not only Home
+api("/api/status").then((st) => { $("#mode-pill").textContent = st.mode; $("#ver").textContent = "v" + st.version; }).catch(() => {});
 show(location.hash.slice(1) || "home");

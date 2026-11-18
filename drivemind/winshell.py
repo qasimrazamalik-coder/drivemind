@@ -71,14 +71,19 @@ def uninstall_menu() -> None:
 
 
 def set_autostart(on: bool, port: int = 7878) -> None:
-    """Start the guardian (no browser window) when Windows starts."""
+    """Start DriveMind in the tray (no window) when Windows starts; falls back to the
+    windowless server when the tray packages are not installed."""
     if sys.platform != "win32":
         raise RuntimeError("Autostart is Windows-only")
     import winreg  # type: ignore
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
         if on:
-            winreg.SetValueEx(k, "DriveMind", 0, winreg.REG_SZ,
-                              f"{_python(windowless=True)} -m drivemind serve --no-browser --port {port}")
+            try:
+                import pystray  # noqa: F401
+                cmd = f"{_python(windowless=True)} -m drivemind tray --port {port}"
+            except ImportError:
+                cmd = f"{_python(windowless=True)} -m drivemind serve --no-browser --port {port}"
+            winreg.SetValueEx(k, "DriveMind", 0, winreg.REG_SZ, cmd)
         else:
             try:
                 winreg.DeleteValue(k, "DriveMind")

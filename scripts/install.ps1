@@ -10,13 +10,13 @@ if (-not $py) { Write-Host "Install Python 3.10+ from https://www.python.org/dow
 Write-Host "Creating virtual environment..." -ForegroundColor Cyan
 & $py.Source -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
-& .\.venv\Scripts\python.exe -m pip install -e ".[watch]" --quiet
+& .\.venv\Scripts\python.exe -m pip install -e ".[all]" --quiet
 
 Write-Host "Adding the Explorer right-click menu..." -ForegroundColor Cyan
 & .\.venv\Scripts\python.exe -m drivemind shell install
 
-$ans = Read-Host "Start DriveMind with Windows (background guardian, no window)? [y/N]"
+$ans = Read-Host "Start DriveMind with Windows (tray icon next to the clock)? [y/N]"
 if ($ans -match '^[yY]') { & .\.venv\Scripts\python.exe -m drivemind shell autostart-on }
 
-Write-Host "`nDone. Open the dashboard with:  scripts\DriveMind.bat" -ForegroundColor Green
+Write-Host "`nDone. Start it now with:  scripts\DriveMind.bat  (tray icon + dashboard)" -ForegroundColor Green
 Write-Host "Optional local AI: install Ollama (https://ollama.com) then run:  ollama pull qwen3:4b"

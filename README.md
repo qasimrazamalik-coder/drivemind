@@ -25,8 +25,13 @@ DriveMind organizes your files, clears caches and temporary junk, finds duplicat
 | **Cache Cleaner** | 17 caches, each with its own Yes / Ask / No switch. Caches of apps that are open are skipped. Temp files are removed only after a day unused. |
 | **Temporary files** | 10 junk rules (unfinished downloads, Office lock files, old installers, extracted zips, old builds, and more). Also a Temp Zone that clears itself and a right-click "temporary for N days" option. |
 | **Duplicates** | Matched by content (file size, then a partial hash, then a full hash), so renamed copies are caught. The copy in your most organized folder is kept. |
-| **Dev junk** | `node_modules`, `.venv`, `build`, `.next`, `.gradle` and similar folders in projects idle for 60+ days. Each one is shown with the command that brings it back. |
+| **Dev junk** | `node_modules`, `.venv`, `build`, `.next`, `.gradle` and similar folders in projects idle for 60+ days. Each one is shown with the command that brings it back. Dependencies are deleted; build outputs go to quarantine, since they might hold hand-made files. |
 | **User folders** | Moves Desktop, Downloads, Documents, Pictures and Videos to another drive, then re-points Windows (as Explorer's Location > Move does), so your apps follow. |
+| **Search** | Find files by what is inside them (Word, Excel, PowerPoint, text, code, and PDF with `pypdf`), plus type and month/year: *dubai invoice march*. Uses SQLite's built-in full-text search (FTS5 with BM25 ranking), stays on the PC, and refreshes every 6 hours. |
+| **Project archiver** | Projects idle for 90+ days are zipped with their full git history, leaving out regenerable dependencies but keeping build folders. Uncommitted, stashed or unpushed work is never archived automatically. The original stays in quarantine, so Undo works. |
+| **Disk health** | SSD wear, temperature, error counts and Windows' health status, read from the drive's own reliability counters, with a daily alert if a disk needs attention. |
+| **Developer data** | WSL distros, Docker's disk, Android SDK and emulators, Gradle, Ollama models and Steam games: their size on C:, the supported way to move each, and a diskpart script that shrinks WSL and Docker virtual disks. |
+| **Tray** | A ring next to the clock, coloured by C: health, with Open dashboard, Tidy now, Pause and Quit. It starts with Windows. |
 | **History** | Undo any plan, and "Where did my file go?" search across everything DriveMind has moved. |
 | **Android app** | Pair by QR code over Wi-Fi. See drive health and alerts, approve, reject or undo plans, "Tidy now", Yes / Ask / No switches and mode. Everything syncs with the PC instantly. See `mobile/README.md`. |
 | **What is this folder?** | Built-in knowledge of about 30 common folders (WinSxS, node_modules, Installer…), with the local AI as a fallback. |
@@ -69,6 +74,11 @@ drivemind explain "C:\some\folder"      what is this folder and is it safe to de
 drivemind mode safe|balanced|autopilot
 drivemind set organize_moves yes        also: cache.pip no, temp.installers ask
 drivemind rule "anything with invoice from Downloads goes to Work/Invoices"
+drivemind index / search dubai invoice march
+drivemind archive [--apply]             zip idle projects (git-safe)
+drivemind ssd                           disk health
+drivemind devdata                       WSL / Docker / Android SDK sizes and how to move them
+drivemind tray                          tray icon + dashboard + phone sync + guardian
 drivemind tag-temp file.zip --days 7
 drivemind shell install|uninstall|autostart-on|autostart-off
 drivemind serve                         dashboard + background guardian (+ phone sync once paired)
@@ -102,6 +112,11 @@ drivemind/
   api.py         local FastAPI server
   cli.py         command line
   devices.py     phone pairing tokens, QR code, Wi-Fi address
+  archiver.py    git-safe zip archiving of idle projects
+  search.py      full-text file search (SQLite FTS5)
+  ssd.py         disk health from reliability counters
+  devdata.py     WSL / Docker / Android / Gradle / Ollama / Steam report
+  tray.py        system-tray app
   web/           dashboard (no build step, no external requests)
 mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 ```
@@ -109,19 +124,18 @@ mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest -q          # 35 tests, run on Windows and Ubuntu in CI
+pip install -e ".[dev,all]"
+pytest -q          # 41 tests, run on Windows and Ubuntu in CI
 cd mobile && npm install && npx tsc --noEmit   # typecheck the Android app
 ```
 
-## Roadmap (next)
+## Not done yet
 
-- Tauri desktop shell with a tray icon, wrapping the same dashboard.
-- Elevated helper service for MFT fast-scan and the admin-only caches.
-- WSL / Docker / Android SDK mover and `.vhdx` compactor.
-- Semantic search over file contents, screenshot OCR, and photo albums (CLIP).
-- Git-safe project archiver and SSD SMART health.
-- Phone push alerts when the app is closed (FCM), and phone access away from home.
+- **Not yet run on real hardware:** Windows (tray, Known Folder moves, Explorer menu, disk counters) and an Android phone. CI runs the tests on Windows once the repo is pushed.
+- **Elevated helper:** fast MFT scan and the admin-only caches (Windows Update, Prefetch, Delivery Optimization).
+- **Image understanding:** screenshot OCR, photo albums and "find the photo of…" search (CLIP).
+- **Phone away from home:** needs a relay or Tailscale. Instant push (FCM) instead of the 15-minute background check.
+- **Signed installer (MSIX) and auto-update.**
 
 ## License
 

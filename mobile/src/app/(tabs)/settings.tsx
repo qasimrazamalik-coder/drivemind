@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, Text, View } from "react-native";
 
 import { Btn, Card, ErrorBox, H1, Screen, Seg, s } from "../../components/ui";
 import { Decision } from "../../lib/api";
+import { disableBackgroundAlerts } from "../../lib/background";
 import { useConn, useLoad } from "../../lib/conn";
 import { C } from "../../lib/theme";
 import { useToast } from "../../lib/toast";
@@ -42,6 +43,7 @@ export default function Settings() {
 
   function unpair() {
     const go = async () => {
+      await disableBackgroundAlerts().catch(() => {});
       await forget();
       router.replace("/pair");
     };

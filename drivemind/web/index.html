@@ -12,10 +12,11 @@
     <div class="brand"><span class="logo" aria-hidden="true"></span>DriveMind</div>
     <nav id="nav">
       <a data-view="home" class="on">Home</a>
+      <a data-view="search">Search</a>
       <a data-view="organize">Organize</a>
       <a data-view="caches">Cache Cleaner</a>
       <a data-view="temp">Temporary files</a>
-      <a data-view="more">Duplicates &amp; dev</a>
+      <a data-view="more">Projects &amp; dev</a>
       <a data-view="folders">User folders</a>
       <a data-view="history">History</a>
       <a data-view="settings">Settings</a>
@@ -40,7 +41,16 @@
         <div id="scan-out"><p class="muted">Scan a drive or folder to see its biggest folders and files. Cloud-only OneDrive files are never downloaded.</p></div>
       </div>
       <div class="card"><h2>All drives</h2><div id="drives" class="drives"></div></div>
+      <div class="card"><h2>Disk health</h2><div id="ssd"><p class="muted">Reading the drives' own health counters…</p></div></div>
       <div class="card"><div class="row-head"><h2>Alerts</h2><button class="btn ghost sm" id="read-btn">Mark read</button></div><div id="notices"></div></div>
+    </section>
+
+    <!-- SEARCH -->
+    <section data-page="search" class="page">
+      <header class="head"><h1>Search</h1><p class="sub">Find files by what is inside them, their type and when they changed — e.g. <em>dubai invoice march</em> or <em>contract pdf 2026</em>. The index stays on this PC.</p></header>
+      <div class="card"><div class="inline"><input id="q" class="input" placeholder="What are you looking for?" spellcheck="false" aria-label="Search files"><button class="btn" id="q-btn">Search</button></div>
+        <div class="row-head" style="margin:12px 0 0"><span class="muted" id="idx-status">Index refreshes every 6 hours in the background.</span><button class="btn ghost sm" id="idx-btn">Refresh index now</button></div></div>
+      <div id="q-out"></div>
     </section>
 
     <!-- ORGANIZE -->
@@ -78,7 +88,7 @@
 
     <!-- MORE -->
     <section data-page="more" class="page">
-      <header class="head"><h1>Duplicates &amp; dev junk</h1><p class="sub">Exact copies (checked by content, not name) and regenerable folders in projects you have not touched for a while.</p></header>
+      <header class="head"><h1>Projects &amp; dev</h1><p class="sub">Duplicates (checked by content), old project dependencies, idle projects to archive, and developer data that fills C:.</p></header>
       <div class="grid2">
         <div class="card"><h2>Duplicate files</h2><p class="muted">Keeps the copy in the most organized place; the rest go to quarantine.</p>
           <input id="dupe-roots" class="input" placeholder="Folders, separated by ;  (empty = your user folders)" spellcheck="false">
@@ -87,7 +97,12 @@
           <input id="dev-roots" class="input" placeholder="Project folders, separated by ;" spellcheck="false">
           <div class="form-actions"><button class="btn" id="dev-btn">Find dev junk</button></div></div>
       </div>
+      <div class="card"><h2>Archive idle projects</h2><p class="muted">Projects untouched for 90+ days are zipped with their full git history. Anything uncommitted or not pushed always asks you first; the original stays in quarantine.</p>
+        <input id="arch-roots" class="input" placeholder="Project folders, separated by ;  (empty = Desktop, Documents, Projects, source)" spellcheck="false">
+        <div class="form-actions"><button class="btn" id="arch-btn">Find idle projects</button></div></div>
       <div id="more-plan"></div>
+      <div class="card"><div class="row-head"><h2>Developer data on C:</h2><button class="btn ghost sm" id="devdata-btn">Check</button></div>
+        <div id="devdata"><p class="muted">WSL, Docker, Android emulators and SDK, Gradle, Ollama models and Steam games — sizes and the safe way to move each.</p></div></div>
       <div class="card"><h2>What is this folder?</h2>
         <div class="inline"><input id="explain-path" class="input" placeholder="Paste any folder path" spellcheck="false"><button class="btn ghost" id="explain-btn">Explain</button></div>
         <div id="explain-out"></div></div>

@@ -433,6 +433,43 @@ def notices_read():
     return {"ok": True}
 
 
+# ------------------------------------------------- archive, search, health ---
+@app.post("/api/plans/archive")
+def new_archive(req: RootsReq):
+    from .archiver import plan_archive
+    roots = [Path(r) for r in req.roots] or [p for p in (user_folders()["Desktop"], user_folders()["Documents"],
+                                                         Path.home() / "Projects", Path.home() / "source")
+                                             if p.exists()]
+    p = plan_archive(Settings.load(), roots)
+    p.save()
+    return _plan_out(p)
+
+
+@app.post("/api/search/index")
+def search_index(req: RootsReq):
+    from .search import build_index, default_roots
+    roots = [Path(r) for r in req.roots] or default_roots()
+    return {"job": jobs.submit("index", build_index, roots)}
+
+
+@app.get("/api/search")
+def search_files(q: str, limit: int = 30):
+    from .search import search
+    return search(q, limit) if q.strip() else []
+
+
+@app.get("/api/ssd")
+def ssd_health():
+    from .ssd import disk_health
+    return disk_health()
+
+
+@app.get("/api/devdata")
+def dev_data():
+    from .devdata import report
+    return report()
+
+
 # ------------------------------------------------------------ phone pairing ---
 class PairReq(BaseModel):
     name: str = "Android phone"
@@ -515,6 +552,7 @@ for path, fn, methods in [
     ("/settings", get_settings, ["GET"]), ("/settings/mode", set_mode, ["PUT"]),
     ("/settings/option", set_option, ["PUT"]), ("/settings/cache", set_cache_choice, ["PUT"]),
     ("/settings/temp", set_temp_choice, ["PUT"]), ("/where", where, ["GET"]),
+    ("/search", search_files, ["GET"]), ("/ssd", ssd_health, ["GET"]), ("/plans/archive", new_archive, ["POST"]),
 ]:
     m.add_api_route(path, fn, methods=methods)
 app.mount("/m", m)

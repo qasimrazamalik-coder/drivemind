@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import "../lib/background"; // registers the background alert task at startup
 import { ConnProvider } from "../lib/conn";
 import { C } from "../lib/theme";
 import { ToastProvider } from "../lib/toast";

@@ -147,6 +147,10 @@ tr.dim td { opacity: .55; }
 .explain dt { color: var(--muted); }
 .explain dd { margin: 0; }
 
+mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--text); border-radius: 3px; padding: 0 2px; }
+.steps { margin: 4px 0 8px; padding-left: 20px; color: var(--text); }
+.steps li { margin: 3px 0; font-size: 13px; }
+.code { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 12px var(--mono); white-space: pre-wrap; word-break: break-all; }
 .pair { display: flex; gap: 20px; align-items: center; margin: 8px 0 4px; flex-wrap: wrap; }
 .pair svg { border-radius: 10px; width: 210px; height: auto; flex: none; }
 .pair p { margin: 0 0 6px; }

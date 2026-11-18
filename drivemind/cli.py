@@ -267,6 +267,18 @@ def cmd_serve(args) -> None:
     uvicorn.run(app, host="0.0.0.0" if lan else "127.0.0.1", port=args.port, log_level="warning")
 
 
+def cmd_tray(args) -> None:
+    try:
+        import pystray  # noqa: F401
+        from PIL import Image  # noqa: F401
+    except ImportError:
+        sys.exit('The tray needs extra packages:  pip install "drivemind[tray]"')
+    except Exception as e:  # e.g. no desktop session to show a tray in
+        sys.exit(f"Cannot show a tray icon here ({type(e).__name__}). Use `drivemind serve` instead.")
+    from .tray import TrayApp
+    TrayApp(port=args.port).run()
+
+
 def cmd_watch(args) -> None:
     from .service import Guardian
     g = Guardian(interval_s=args.interval)
@@ -277,6 +289,63 @@ def cmd_watch(args) -> None:
             time.sleep(args.interval)
     except KeyboardInterrupt:
         pass
+
+
+def cmd_archive(args) -> None:
+    from .archiver import plan_archive
+    from .paths import user_folders
+    s = Settings.load()
+    roots = [Path(r) for r in args.roots] if args.roots else [
+        p for p in (user_folders()["Desktop"], user_folders()["Documents"], Path.home() / "Projects",
+                    Path.home() / "source") if p.exists()]
+    _apply_or_save(plan_archive(s, roots, Path(args.to) if args.to else None), args)
+
+
+def cmd_index(args) -> None:
+    from .search import build_index, default_roots
+    roots = [Path(r) for r in args.roots] if args.roots else default_roots()
+    r = build_index(roots)
+    print(f"Indexed: {r['added']} new, {r['updated']} changed, {r['removed']} removed — "
+          f"{r['total']:,} files searchable ({r['seconds']}s)")
+
+
+def cmd_search(args) -> None:
+    from .search import search
+    hits = search(" ".join(args.query), args.limit)
+    if not hits:
+        print("Nothing found. Run `drivemind index` first if you have not yet.")
+    for h in hits:
+        when = time.strftime("%Y-%m-%d", time.localtime(h["mtime"]))
+        print(f"  {when}  {human(h['size']):>9}  {h['path']}")
+        if h["snippet"]:
+            print(c(f"{'':24}{h['snippet'][:110]}", "2"))
+
+
+def cmd_ssd(args) -> None:
+    from .ssd import disk_health
+    disks = disk_health()
+    if not disks:
+        print("Disk health is read from Windows; nothing reported here.")
+    for d in disks:
+        color = {"good": "32", "watch": "33", "critical": "31"}[d["status"]]
+        print(f"{d['name']} ({d['media']} {d['bus']}, {d['size_gb']} GB): {c(d['status'], color)}")
+        for n in d["notes"]:
+            print(f"   - {n}")
+
+
+def cmd_devdata(args) -> None:
+    from .devdata import report
+    rows = report()
+    if not rows:
+        print("No WSL, Docker, Android, Gradle, Ollama or Steam data found on this PC.")
+    for r in rows:
+        print(c(f"\n{r['name']}: {human(r['size'])}", "1"))
+        for p in r["paths"]:
+            print(f"   {p}")
+        for i, step in enumerate(r["steps"], 1):
+            print(f"   {i}. {step}")
+        if r.get("compact"):
+            print(c(f"   Shrink it: {r['compact']['how']}", "2"))
 
 
 def cmd_tag_temp(args) -> None:
@@ -390,6 +459,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--name", default="Android phone")
     p.add_argument("--port", type=int, default=7878)
     p.set_defaults(fn=cmd_pair)
+    p = sub.add_parser("archive", help="zip projects idle for months (git-safe)")
+    p.add_argument("--roots", nargs="*")
+    p.add_argument("--to", help="archive folder")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--apply", action="store_true")
+    p.add_argument("--yes-all", action="store_true")
+    p.set_defaults(fn=cmd_archive)
+    p = sub.add_parser("index", help="build the search index of your files")
+    p.add_argument("--roots", nargs="*")
+    p.set_defaults(fn=cmd_index)
+    p = sub.add_parser("search", help="find files by content, type and date")
+    p.add_argument("query", nargs="+")
+    p.add_argument("--limit", type=int, default=20)
+    p.set_defaults(fn=cmd_search)
+    sub.add_parser("ssd", help="SSD / disk health").set_defaults(fn=cmd_ssd)
+    sub.add_parser("devdata", help="WSL, Docker, Android SDK ... sizes and how to move them").set_defaults(fn=cmd_devdata)
     p = sub.add_parser("tag-temp", help="mark a file or folder as temporary")
     p.add_argument("path")
     p.add_argument("--days", type=float, default=7)
@@ -397,6 +482,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("shell", help="Windows: Explorer right-click menu and autostart")
     p.add_argument("action", choices=["install", "uninstall", "autostart-on", "autostart-off"])
     p.set_defaults(fn=cmd_shell)
+    p = sub.add_parser("tray", help="run in the system tray (dashboard, phone sync, guardian)")
+    p.add_argument("--port", type=int, default=7878)
+    p.set_defaults(fn=cmd_tray)
     p = sub.add_parser("watch")
     p.add_argument("--interval", type=float, default=300)
     p.set_defaults(fn=cmd_watch)

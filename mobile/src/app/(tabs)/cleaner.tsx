@@ -12,7 +12,7 @@ export default function Cleaner() {
   const { api } = useConn();
   const toast = useToast();
   const caches = useLoad(api ? api.caches : null, [api]);
-  const [busy, setBusy] = useState<"clean" | "temp" | null>(null);
+  const [busy, setBusy] = useState<"clean" | "temp" | "archive" | null>(null);
 
   async function setChoice(row: CacheRow, v: Decision) {
     if (!api) return;
@@ -24,11 +24,11 @@ export default function Cleaner() {
     }
   }
 
-  async function review(kind: "clean" | "temp") {
+  async function review(kind: "clean" | "temp" | "archive") {
     if (!api) return;
     setBusy(kind);
     try {
-      const p = kind === "clean" ? await api.newClean() : await api.newTemp();
+      const p = kind === "clean" ? await api.newClean() : kind === "temp" ? await api.newTemp() : await api.newArchive();
       router.push({ pathname: "/plan/[id]", params: { id: p.id } });
     } catch (e) {
       toast((e as Error).message);
@@ -49,6 +49,7 @@ export default function Cleaner() {
         <View style={{ gap: 8 }}>
           <Btn label="Review a cache clean" busy={busy === "clean"} onPress={() => review("clean")} />
           <Btn label="Find temporary junk" kind="ghost" busy={busy === "temp"} onPress={() => review("temp")} />
+          <Btn label="Archive idle projects" kind="ghost" busy={busy === "archive"} onPress={() => review("archive")} />
         </View>
       </Card>
       <Card title="Caches">

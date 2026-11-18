@@ -14,6 +14,7 @@ export default function Home() {
   const hello = useLoad(api ? api.hello : null, [api]);
   const tips = useLoad(api ? api.advice : null, [api]);
   const notices = useLoad(api ? api.notices : null, [api]);
+  const disks = useLoad(api ? api.ssd : null, [api]);
   const [tidying, setTidying] = useState(false);
   const d = hello.data?.drive;
 
@@ -21,6 +22,7 @@ export default function Home() {
     hello.reload();
     tips.reload();
     notices.reload();
+    disks.reload();
   };
 
   async function tidy() {
@@ -93,6 +95,20 @@ export default function Home() {
           <Text style={s.muted}>No alerts.</Text>
         )}
       </Card>
+
+      {disks.data?.length ? (
+        <Card title="Disk health">
+          {disks.data.map((x) => (
+            <View key={x.name} style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line, gap: 4 }}>
+              <View style={s.row}>
+                <Text style={[s.text, { flex: 1, fontWeight: "600" }]}>{x.name}</Text>
+                <Pill label={x.status} tone={x.status === "good" ? "yes" : x.status === "watch" ? "ask" : "bad"} />
+              </View>
+              <Text style={s.muted}>{x.notes.join(" · ")}</Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       {hello.data?.drives && hello.data.drives.length > 1 ? (
         <Card title="All drives">

@@ -23,6 +23,7 @@ class Op(str, Enum):
     QUARANTINE = "quarantine"  # reversible delete: move into DriveMind's quarantine
     DELETE_CACHE = "delete_cache"  # remove regenerable cache contents (src folder or file)
     RELOCATE_FOLDER = "relocate_folder"  # move a Windows user folder (Desktop ...) to another drive
+    ARCHIVE = "archive"        # zip a project, then quarantine the original folder
 
 
 class Status(str, Enum):

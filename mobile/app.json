@@ -8,8 +8,15 @@
     "scheme": "drivemind",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0e1013",
-    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#0e1013" },
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.qasimrazamalik.drivemind" },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0e1013"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.qasimrazamalik.drivemind"
+    },
     "android": {
       "package": "com.qasimrazamalik.drivemind",
       "adaptiveIcon": {
@@ -17,16 +24,42 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["CAMERA", "POST_NOTIFICATIONS"],
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ],
       "predictiveBackGestureEnabled": false
     },
-    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
     "plugins": [
       "expo-router",
-      ["expo-camera", { "cameraPermission": "Allow DriveMind to scan the pairing code shown on your PC" }],
-      ["expo-notifications", { "color": "#5eead4" }],
-      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DriveMind to scan the pairing code shown on your PC"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5eead4"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-background-task"
     ],
-    "experiments": { "typedRoutes": false }
+    "experiments": {
+      "typedRoutes": false
+    }
   }
 }

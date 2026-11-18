@@ -86,6 +86,19 @@ def _apply_one(plan: Plan, a: Action, settings: Settings) -> None:
     if a.op == Op.RELOCATE_FOLDER:
         _relocate(plan, a)
         return
+    if a.op == Op.ARCHIVE:
+        from .archiver import zip_project
+        if not src.is_dir():
+            raise FileNotFoundError(a.src)
+        dst = unique_destination(Path(a.dst))
+        if not _has_room(dst, a.size):
+            raise OSError("not enough free space for the archive")
+        zip_project(src, dst)
+        a.dst = str(dst)
+        _journal(plan.id, "archive", a.src, str(dst), a.size, a.reason)
+        qdst = _move(src, quarantine_dir() / plan.id / _flatten(src))
+        _journal(plan.id, "quarantine", a.src, str(qdst), a.size, "original kept after archiving")
+        return
     if a.op == Op.MOVE:
         if not src.exists():
             raise FileNotFoundError(a.src)
@@ -222,6 +235,13 @@ def undo_plan(plan: Plan) -> Dict:
     rows = conn.execute("SELECT * FROM journal WHERE plan_id=? AND undone=0 ORDER BY id DESC", (plan.id,)).fetchall()
     restored = skipped = 0
     for r in rows:
+        if r["op"] == "archive":
+            try:
+                Path(r["dst"]).unlink()  # the folder comes back from quarantine in the next step
+            except OSError:
+                pass
+            conn.execute("UPDATE journal SET undone=1 WHERE id=?", (r["id"],))
+            continue
         if r["op"] == "known_folder":
             from .winapi import set_known_folder
             set_known_folder(r["reason"], r["src"])

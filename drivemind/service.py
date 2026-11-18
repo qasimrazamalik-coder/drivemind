@@ -119,6 +119,16 @@ class Guardian:
                     notify("info", f"{p.summary()['waiting']} new downloads ready to sort",
                            "Review them in DriveMind.", p.id)
 
+        if heavy_ok and self._due("search_index", 6 * 3600):
+            from .search import build_index, default_roots
+            build_index(default_roots())
+
+        if self._due("ssd", 86400):
+            from .ssd import disk_health
+            for d in disk_health():
+                if d["status"] != "good":
+                    notify(d["status"], f"Disk check: {d['name']} needs attention", "; ".join(d["notes"])[:200])
+
         if heavy_ok and self._due("weekly_clean", 7 * 86400):
             if s.decision("weekly_cache_clean") != Decision.NO:
                 p = plan_cache_clean(s, scheduled=True)

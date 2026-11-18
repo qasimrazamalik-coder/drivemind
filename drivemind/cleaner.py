@@ -340,7 +340,7 @@ def plan_temp_clean(settings: Settings, roots: Optional[List[Path]] = None, arch
             add("emptydirs", Op.QUARANTINE, d, 0, "empty folder")
 
     for junk in find_dev_junk(roots, settings.stale_project_days, kinds={"build"}, now=now):
-        add("buildout", Op.DELETE_CACHE, Path(junk["path"]), junk["size"],
+        add("buildout", Op.QUARANTINE, Path(junk["path"]), junk["size"],
             f"{junk['name']} in '{Path(junk['project']).name}', untouched {junk['idle_days']:.0f} days — {junk['restore']}")
 
     win_old = Path(os.environ.get("SystemDrive", "C:") + "\\Windows.old")

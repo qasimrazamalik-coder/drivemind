@@ -20,6 +20,8 @@ export type PlanRow = { id: string; ts: number; title: string; status: string; k
 export type Notice = { id: number; ts: number; level: string; title: string; body: string | null; read: number };
 export type CacheRow = { id: string; name: string; effect: string; size: number; paths: string[];
   command: string | null; choice: Decision; display_only: boolean; admin: boolean; apps_open: string[] };
+export type Hit = { path: string; name: string; size: number; mtime: number; snippet: string };
+export type Disk = { name: string; media: string; bus: string; size_gb: number | null; status: "good" | "watch" | "critical"; notes: string[] };
 export type Tip = { id: string; title: string; detail: string; frees: number; action: string };
 
 const KEY = "drivemind.conn";
@@ -100,6 +102,9 @@ export function client(conn: Conn) {
     newTemp: () => call<Plan>("/plans/temp", "POST", { roots: [] }),
     tidy: () => call<{ done: number; failed: number; freed_bytes: number; waiting: number }>("/tidy", "POST"),
     caches: () => call<CacheRow[]>("/caches"),
+    search: (q: string) => call<Hit[]>(`/search?q=${encodeURIComponent(q)}`),
+    ssd: () => call<Disk[]>("/ssd"),
+    newArchive: () => call<Plan>("/plans/archive", "POST", { roots: [] }),
     settings: () => call<{ settings: { mode: string; options: Record<string, Decision> }; options: Record<string, string> }>("/settings"),
     setMode: (mode: string) => call("/settings/mode", "PUT", { mode }),
     setOption: (key: string, value: Decision) => call<{ mode: string }>("/settings/option", "PUT", { key, value }),
