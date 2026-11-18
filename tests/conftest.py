@@ -35,7 +35,9 @@ def isolated(tmp_path, monkeypatch):
         m["PROGRAMDATA"] = str(tmp_path / "ProgramData")
         return m
     monkeypatch.setattr(cleaner, "env_map", sandboxed_env_map)
-    from drivemind import db
+    from drivemind import db, devices
+    devices._pins.clear()
+    devices._fails.clear()
     db.close_all()
     yield home
     db.close_all()

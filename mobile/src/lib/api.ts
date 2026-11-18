@@ -23,6 +23,14 @@ export type CacheRow = { id: string; name: string; effect: string; size: number;
 export type Hit = { path: string; name: string; size: number; mtime: number; snippet: string };
 export type Disk = { name: string; media: string; bus: string; size_gb: number | null; status: "good" | "watch" | "critical"; notes: string[] };
 export type Tip = { id: string; title: string; detail: string; frees: number; action: string };
+export type LiveEvent = { seq: number; ts: number; kind: string; source?: string };
+export type Events = { boot: string; seq: number; events: LiveEvent[]; reset: boolean };
+export type ChatSource = { path: string; name: string; snippet: string };
+export type ChatAction = { label: string; kind: string; target: string };
+export type ChatAnswer = { answer: string; sources: ChatSource[]; actions: ChatAction[]; intent: string; ai: boolean };
+export type FoundPC = { host: string; port: number; pc: string; version: string; pairing_open: boolean };
+export type Weekly = { days: number; freed_bytes: number; moved_files: number; cleaned_files: number;
+  growth_bytes: number | null; plans_applied: number; top_categories: { name: string; files: number }[] };
 
 const KEY = "drivemind.conn";
 
@@ -58,6 +66,76 @@ export function parsePairing(text: string): Conn | null {
   return m ? { host: m[1], port: Number(m[2]), token: m[3] } : null;
 }
 
+/** Short, timed fetch for finding PCs: most addresses on the Wi-Fi never answer. */
+async function probe(url: string, ms: number, init?: RequestInit): Promise<Response | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/**
+ * Find DriveMind PCs on this Wi-Fi: ask every address in the phone's /24 network for
+ * /m/discover (open, returns only a PC name). 32 at a time, ~1.2 s each: a few seconds total.
+ */
+export async function discoverPCs(myIp: string, port = 7878, onFound?: (pc: FoundPC) => void): Promise<FoundPC[]> {
+  const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(myIp);
+  if (!m || myIp === "0.0.0.0" || myIp.startsWith("127.")) return [];
+  const prefix = `${m[1]}.${m[2]}.${m[3]}.`;
+  const hosts = Array.from({ length: 254 }, (_, i) => prefix + (i + 1)).filter((h) => h !== myIp);
+  const found: FoundPC[] = [];
+  let next = 0;
+  async function worker() {
+    while (next < hosts.length) {
+      const host = hosts[next++];
+      const r = await probe(`http://${host}:${port}/m/discover`, 1200);
+      if (!r?.ok) continue;
+      const d = (await r.json().catch(() => null)) as Omit<FoundPC, "host"> & { app?: string } | null;
+      if (d?.app === "drivemind") {
+        const pc = { host, port: d.port || port, pc: d.pc, version: d.version, pairing_open: d.pairing_open };
+        found.push(pc);
+        onFound?.(pc);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 32 }, worker));
+  return found;
+}
+
+/** Swap the 6-digit code shown on the PC for this phone's own token. */
+export async function claimPin(host: string, port: number, pin: string, name: string): Promise<Conn> {
+  const r = await probe(`http://${host}:${port}/m/claim`, 8000, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin, name }),
+  });
+  if (!r) throw new ApiError(`Can't reach the PC at ${host}.`, 0);
+  const d = (await r.json().catch(() => ({}))) as { token?: string; id?: string; pc?: string; detail?: string };
+  if (!r.ok || !d.token) throw new ApiError(d.detail || "That code didn't work.", r.status);
+  return { host, port, token: d.token, id: d.id, pc: d.pc };
+}
+
+// ---- offline cache: each screen keeps its last good answer, shown when the PC is away ----
+const CACHE = "drivemind.cache.";
+export async function cacheGet<T>(key: string): Promise<{ at: number; data: T } | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+export async function cachePut(key: string, data: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CACHE + key, JSON.stringify({ at: Date.now(), data }));
+  } catch {
+    // storage full or unavailable: the app still works, just without the offline copy
+  }
+}
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -66,9 +144,9 @@ export class ApiError extends Error {
 
 export function client(conn: Conn) {
   const base = `http://${conn.host}:${conn.port}/m`;
-  async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async function call<T>(path: string, method = "GET", body?: unknown, ms = 20000): Promise<T> {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const timer = setTimeout(() => ctrl.abort(), ms);
     try {
       const r = await fetch(base + path, {
         method,
@@ -109,6 +187,11 @@ export function client(conn: Conn) {
     setMode: (mode: string) => call("/settings/mode", "PUT", { mode }),
     setOption: (key: string, value: Decision) => call<{ mode: string }>("/settings/option", "PUT", { key, value }),
     setCache: (key: string, value: Decision) => call("/settings/cache", "PUT", { key, value }),
+    events: (since: number, boot: string | null) =>
+      call<Events>(`/events?since=${since}&timeout=25${boot ? `&boot=${boot}` : ""}`, "GET", undefined, 32000),
+    chat: (question: string, history: { role: string; content: string }[]) =>
+      call<ChatAnswer>("/chat", "POST", { question, history }, 120000),
+    weekly: () => call<Weekly>("/report/weekly"),
   };
 }
 export type Client = ReturnType<typeof client>;

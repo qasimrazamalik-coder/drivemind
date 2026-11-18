@@ -211,6 +211,7 @@ loaders.home = async () => {
     $$("[data-tip]").forEach((b) => b.onclick = () => show({ clean_caches: "caches", clean_dev_junk: "more", move_user_folders: "folders" }[b.dataset.tip] || "home"));
   }).catch(() => ($("#tips").innerHTML = `<p class="muted">Could not build tips.</p>`));
   api("/api/scan/latest").then((s) => (s.root ? renderScan(s) : renderScan(null)));
+  loadWeek().catch(() => ($("#week").innerHTML = `<p class="muted">Could not load the weekly report.</p>`));
   api("/api/ssd").then((disks) => {
     $("#ssd").innerHTML = disks.length ? `<div class="list">${disks.map((d) => `<div class="li"><div><b>${esc(d.name)}</b>
       <div class="meta">${esc([d.media, d.bus, d.size_gb ? d.size_gb + " GB" : ""].filter(Boolean).join(" · "))}</div>
@@ -219,11 +220,96 @@ loaders.home = async () => {
   }).catch(() => ($("#ssd").innerHTML = `<p class="muted">Could not read disk health.</p>`));
 };
 
-// live: refresh numbers every 30 s while the Overview is visible
-setInterval(() => {
-  if (document.hidden || !$('[data-page="home"]').classList.contains("on")) return;
-  refreshStatus().then(() => $("#live").classList.remove("off")).catch(() => $("#live").classList.add("off"));
-}, 30000);
+// ------------------------------------------------------------- this week --
+async function loadWeek() {
+  const w = await api("/api/report/weekly");
+  const growth = w.growth_bytes == null ? "–" : `${w.growth_bytes >= 0 ? "+" : "−"}${human(Math.abs(w.growth_bytes))}`;
+  $("#week-text").textContent = w.text;
+  $("#week").innerHTML = [
+    ["Freed", human(w.freed_bytes)], ["Files organized", w.moved_files.toLocaleString()],
+    ["Plans applied", w.plans_applied], ["Drive change", growth],
+  ].map(([k, v]) => `<div class="kpi"><span class="kpi-label">${k}</span><b class="kpi-val">${v}</b></div>`).join("");
+}
+
+// ------------------------------------------------------------- large files --
+let largeMb = 500, largeRows = [];
+$$("#large-min button").forEach((b) => b.onclick = () => {
+  $$("#large-min button").forEach((x) => x.classList.toggle("on", x === b)); largeMb = Number(b.dataset.mb);
+});
+function renderLarge() {
+  if (!largeRows.length) {
+    $("#large-chart").innerHTML = "";
+    $("#large").innerHTML = `<p class="muted">No files over ${largeMb >= 1024 ? largeMb / 1024 + " GB" : largeMb + " MB"} in your folders.</p>`;
+    return;
+  }
+  Charts.bars($("#large-chart"), largeRows.slice(0, 8).map((f) => ({ name: f.name, size: f.size, count: 1 })), { colorIndex: 2 });
+  const ago = (t) => { const d = (Date.now() / 1000 - t) / 86400; return d < 1 ? "today" : d < 60 ? `${Math.round(d)} days ago` : d < 730 ? `${Math.round(d / 30)} months ago` : `${Math.round(d / 365)} years ago`; };
+  $("#large").innerHTML = `<table class="tbl"><thead><tr><th><span class="sr-only">Pick</span></th><th>File</th><th>Last used</th><th class="num">Size</th></tr></thead><tbody>${
+    largeRows.map((f, i) => `<tr><td><input type="checkbox" data-large="${i}" aria-label="Pick ${esc(f.name)}"></td>
+      <td>${esc(f.name)}<div class="desc path">${esc(f.path)}</div></td><td>${ago(f.last_used)}</td><td class="num">${human(f.size)}</td></tr>`).join("")
+  }</tbody></table><div class="row-head" style="margin-top:12px"><span class="muted" id="large-sel">Nothing picked</span>
+    <button class="btn" id="large-go" disabled>Review removal</button></div>`;
+  const update = () => {
+    const picked = $$("[data-large]:checked").map((c) => largeRows[c.dataset.large]);
+    $("#large-sel").textContent = picked.length ? `${picked.length} picked · ${human(picked.reduce((a, f) => a + f.size, 0))}` : "Nothing picked";
+    $("#large-go").disabled = !picked.length;
+  };
+  $$("[data-large]").forEach((c) => c.addEventListener("change", update));
+  $("#large-go").onclick = (e) => busy(e.target, async () => {
+    const paths = $$("[data-large]:checked").map((c) => largeRows[c.dataset.large].path);
+    renderPlan("#large-plan", await api("/api/plans/large", "POST", { paths }));
+    $("#large-plan").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+$("#large-btn").onclick = (e) => busy(e.target, async () => {
+  const { job } = await api("/api/large", "POST", { roots: [], min_mb: largeMb });
+  $("#large").innerHTML = `<div class="skeleton" style="height:160px"></div>`;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 700));
+    const j = await api(`/api/jobs/${job}`);
+    if (j.status === "done") { largeRows = j.result; $("#large-plan").innerHTML = ""; return renderLarge(); }
+    if (j.status !== "running") throw new Error(j.error || "Search failed");
+  }
+});
+
+// ---------------------------------------------------------------- live sync --
+// Long-polls /api/events: the server answers the moment anything changes (a phone approves a
+// plan, the guardian raises an alert, a scan finishes), so every open screen stays in step.
+const onPage = (v) => $(`[data-page="${v}"]`)?.classList.contains("on");
+const live = { seq: 0, boot: null, pending: new Set(), timer: null };
+const PHONE_SAYS = { plans: "Your phone changed a plan", settings: "Settings changed on your phone" };
+function applyLive() {
+  const k = live.pending; live.pending = new Set();
+  if (k.has("status") || k.has("plans")) { if (onPage("home")) { refreshStatus().catch(() => {}); loadWeek().catch(() => {}); } }
+  if (k.has("notices") && onPage("home")) loadNotices().catch(() => {});
+  if (k.has("scan") && onPage("home")) api("/api/scan/latest").then((s) => s.root && renderScan(s)).catch(() => {});
+  if (k.has("settings")) api("/api/status").then((st) => ($("#mode-pill").textContent = st.mode)).catch(() => {});
+  if (k.has("devices") && onPage("settings")) loadDevices().catch(() => {});
+  if (k.has("history") && onPage("history")) loaders.history?.();
+}
+async function liveLoop() {
+  for (;;) {
+    try {
+      const q = `/api/events?since=${live.seq}&timeout=25` + (live.boot ? `&boot=${live.boot}` : "");
+      const r = await api(q);
+      $("#live").classList.remove("off");
+      const first = live.boot === null;
+      live.boot = r.boot; live.seq = r.seq;
+      if (first) continue; // first call only learns the cursor
+      if (r.reset) { live.pending.add("status").add("notices").add("plans"); }
+      for (const e of r.events) {
+        live.pending.add(e.kind);
+        if (e.kind === "plans" || e.kind === "status") live.pending.add("history");
+        if (e.source === "phone" && PHONE_SAYS[e.kind]) toast(PHONE_SAYS[e.kind]);
+        if (e.kind === "devices" && e.source === "phone") toast("Your phone is paired and connected");
+      }
+      clearTimeout(live.timer); live.timer = setTimeout(applyLive, 250); // batch bursts of events
+    } catch (e) {
+      $("#live").classList.add("off");
+      await new Promise((res) => setTimeout(res, 4000));
+    }
+  }
+}
 
 async function loadNotices() {
   const n = await api("/api/notices");
@@ -437,6 +523,7 @@ $$("#apps-sort button").forEach((b) => b.onclick = () => { $$("#apps-sort button
 const chatLog = [];
 function openChat(open) {
   $("#chat").classList.toggle("open", open); $("#chat").setAttribute("aria-hidden", !open);
+  $("#chat").inert = !open; // closed: nothing inside can take keyboard focus
   $("#chat-fab").classList.toggle("hidden", open); $("#chat-fab").setAttribute("aria-expanded", open);
   if (open) setTimeout(() => $("#chat-in").focus(), 150);
 }
@@ -454,7 +541,7 @@ async function ask(q) {
   try {
     const r = await api("/api/chat", "POST", { question: q, history: chatLog.slice(-6) });
     chatLog.push({ role: "user", content: q }, { role: "assistant", content: r.answer });
-    const srcs = r.sources.length ? `<div class="srcs">${r.sources.map((s, i) => `<span class="src"><b>[${i + 1}] ${esc(s.name)}</b> — ${esc(s.path)}</span>`).join("")}</div>` : "";
+    const srcs = r.ai && r.sources.length ? `<div class="srcs">${r.sources.map((s, i) => `<span class="src"><b>[${i + 1}] ${esc(s.name)}</b> — ${esc(s.path)}</span>`).join("")}</div>` : "";
     const acts = r.actions.length ? `<div class="chips">${r.actions.map((a) => `<button class="chip" data-go="${esc(a.target)}">${esc(a.label)}</button>`).join("")}</div>` : "";
     wait.innerHTML = `${esc(r.answer)}${srcs}${acts}<span class="ai-tag">${r.ai ? "Written by your local AI from the facts above" : "From DriveMind's own data"}</span>`;
     $$("[data-go]", wait).forEach((b) => b.onclick = () => { openChat(false); show(b.dataset.go); });
@@ -514,8 +601,10 @@ async function loadDevices() {
 $("#pair-btn").onclick = (e) => busy(e.target, async () => {
   const r = await api("/api/pair", "POST", { name: "Android phone" });
   // qr_svg is generated locally by DriveMind (segno), not user content
-  $("#pair-out").innerHTML = `<div class="pair">${r.qr_svg || ""}<div><p><b>Scan with the DriveMind app</b></p>
-    <p class="muted">Or tap “Enter code” in the app and type:</p><p class="path">${esc(r.code)}</p>
+  $("#pair-out").innerHTML = `<div class="pair">${r.qr_svg || ""}<div><p><b>On your phone, tap “Find my PC” and enter</b></p>
+    <p class="pin" aria-label="Pairing code ${esc(r.pin.split("").join(" "))}">${esc(r.pin.slice(0, 3))} ${esc(r.pin.slice(3))}</p>
+    <p class="muted">The code works once, for 5 minutes. Or scan the QR code with the app.</p>
+    <details><summary class="muted">Typing it by hand instead?</summary><p class="path">${esc(r.code)}</p></details>
     ${r.lan_enabled ? "" : `<p style="color:var(--warn)">Phone sync is not listening on Wi-Fi yet. Restart DriveMind to turn it on.</p>`}
     <p class="muted">Windows may ask to allow Python on the network — choose Private networks.</p></div></div>`;
   loadDevices();
@@ -536,3 +625,4 @@ $("#rule-btn").onclick = (e) => busy(e.target, async () => {
 api("/api/status").then((st) => { $("#mode-pill").textContent = st.mode; $("#ver").textContent = "v" + st.version; }).catch(() => {});
 $("#mcp-cmd").textContent = "claude mcp add drivemind -- python -m drivemind mcp";
 show(location.hash.slice(1) || "home");
+liveLoop();

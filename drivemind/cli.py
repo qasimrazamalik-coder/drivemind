@@ -365,6 +365,31 @@ def cmd_ssd(args) -> None:
             print(f"   - {n}")
 
 
+def cmd_report(args) -> None:
+    from .insights import weekly, weekly_text
+    r = weekly(args.days)
+    print(weekly_text(r))
+    print(f"  freed: {human(r['freed_bytes'])} · organized: {r['moved_files']} files · plans applied: {r['plans_applied']}")
+    for t in r["top_categories"]:
+        print(f"  {t['files']:>4} files → {t['name']}")
+
+
+def cmd_large(args) -> None:
+    from .insights import large_files
+    roots = [Path(p) for p in args.roots] or None
+    if roots is None:
+        from .paths import user_folders
+        roots = [p for p in user_folders().values() if p.exists()]
+    rows = large_files(roots, args.min_mb * 1024 * 1024, args.limit)
+    if not rows:
+        print(f"No files over {args.min_mb} MB in {', '.join(str(r) for r in roots)}.")
+    for f in rows:
+        when = time.strftime("%Y-%m-%d", time.localtime(f["last_used"]))
+        print(f"{human(f['size']):>10}  last used {when}  {f['path']}")
+    if rows:
+        print("\nTo let some go (to quarantine, 30 days to undo), pick them on the dashboard's Large files page.")
+
+
 def cmd_devdata(args) -> None:
     from .devdata import report
     rows = report()
@@ -506,6 +531,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(fn=cmd_search)
     sub.add_parser("ssd", help="SSD / disk health").set_defaults(fn=cmd_ssd)
+    sp = sub.add_parser("report", help="what DriveMind did this week")
+    sp.add_argument("--days", type=int, default=7)
+    sp.set_defaults(fn=cmd_report)
+    sp = sub.add_parser("large", help="the biggest files in your folders")
+    sp.add_argument("roots", nargs="*", help="folders to look in (default: your user folders)")
+    sp.add_argument("--min-mb", type=int, default=500)
+    sp.add_argument("--limit", type=int, default=30)
+    sp.set_defaults(fn=cmd_large)
     sub.add_parser("devdata", help="WSL, Docker, Android SDK ... sizes and how to move them").set_defaults(fn=cmd_devdata)
     p = sub.add_parser("tag-temp", help="mark a file or folder as temporary")
     p.add_argument("path")

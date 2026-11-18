@@ -18,6 +18,7 @@
       <a data-view="organize" href="#organize">Organize</a>
       <a data-view="caches" href="#caches">Cache Cleaner</a>
       <a data-view="temp" href="#temp">Temporary files</a>
+      <a data-view="large" href="#large">Large files</a>
       <a data-view="more" href="#more">Projects &amp; dev</a>
       <a data-view="apps" href="#apps">Apps &amp; startup</a>
       <a data-view="folders" href="#folders">User folders</a>
@@ -68,6 +69,9 @@
         <div class="card"><h2>Big files untouched for 6+ months</h2><div id="stale"><p class="muted">Appears after a scan.</p></div></div>
       </div>
 
+      <div class="card week"><div class="row-head"><h2>This week</h2><span class="muted" id="week-text"></span></div>
+        <div class="kpis small" id="week"><p class="muted">Loading…</p></div></div>
+
       <div class="grid2">
         <div class="card"><h2>Disk health</h2><div id="ssd"><p class="muted">Reading the drives' own health counters…</p></div></div>
         <div class="card"><div class="row-head"><h2>Alerts</h2><button class="btn ghost sm" id="read-btn">Mark read</button></div><div id="notices"></div></div>
@@ -115,6 +119,19 @@
       <div class="card"><div class="row-head"><h2>Temp junk rules</h2><button class="btn" id="temp-btn">Find temp junk</button></div>
         <table class="tbl" id="temp-tbl"></table></div>
       <div id="temp-plan"></div>
+    </section>
+
+    <!-- LARGE FILES -->
+    <section data-page="large" class="page">
+      <header class="head"><h1>Large files</h1><p class="sub">The biggest files in your folders, with when you last used them. Pick what to let go: it goes to quarantine first, so you have 30 days to change your mind. DriveMind never removes these on its own.</p></header>
+      <div class="card">
+        <div class="row-head"><div class="seg" id="large-min" role="group" aria-label="Minimum file size">
+          <button data-mb="100">100 MB+</button><button data-mb="500" class="on">500 MB+</button><button data-mb="2048">2 GB+</button></div>
+          <button class="btn" id="large-btn">Find large files</button></div>
+        <div id="large-chart" class="chart"></div>
+        <div id="large"><p class="muted">Press “Find large files”. It looks in Desktop, Documents, Downloads, Pictures, Videos, Music and your project folders.</p></div>
+        <div id="large-plan"></div>
+      </div>
     </section>
 
     <!-- PROJECTS & DEV -->
@@ -190,7 +207,7 @@
 
 <!-- ASSISTANT -->
 <button class="chat-fab" id="chat-fab" aria-label="Open DriveMind assistant" aria-expanded="false"><span aria-hidden="true">✦</span> Ask DriveMind</button>
-<aside class="chat" id="chat" aria-label="DriveMind assistant" aria-hidden="true">
+<aside class="chat" id="chat" aria-label="DriveMind assistant" aria-hidden="true" inert>
   <header class="chat-head"><div><b>DriveMind assistant</b><span class="muted" id="chat-mode">Answers from your drive and files</span></div>
     <button class="icon-btn" id="chat-close" aria-label="Close assistant">✕</button></header>
   <div class="chat-log" id="chat-log" aria-live="polite">

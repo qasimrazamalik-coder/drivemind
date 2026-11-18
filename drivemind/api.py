@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, db, devices, jobs
+from . import __version__, db, devices, events, jobs
 from .advisor import advise
 from .cleaner import cache_report, plan_cache_clean, plan_temp_clean, tag_temporary, temp_report
 from .config import OPTION_INFO, Decision, Mode, Settings
@@ -50,6 +50,22 @@ MOBILE_CORS = {
 }
 
 
+# Phone calls allowed before pairing: finding the PC and swapping a 6-digit code for a token.
+OPEN_MOBILE = {"/m/discover", "/m/claim"}
+WRITES = ("POST", "PUT", "DELETE")
+
+
+def _published(request: Request, resp, source: str):
+    """Every successful change becomes a live event for the other screens."""
+    if request.method in WRITES and resp.status_code < 400:
+        kind = events.kind_for(request.url.path)
+        if kind:
+            events.publish(kind, source=source, path=request.url.path)
+            if kind == "plans" and request.url.path.endswith(("/apply", "/undo", "/tidy", "/restore")):
+                events.publish("status", source=source)
+    return resp
+
+
 @app.middleware("http")
 async def local_only(request: Request, call_next):
     path = request.url.path
@@ -58,22 +74,23 @@ async def local_only(request: Request, call_next):
         # CORS is opened only here (bearer tokens cannot be forged by other websites).
         if request.method == "OPTIONS":
             return JSONResponse({}, headers=MOBILE_CORS)
-        auth = request.headers.get("authorization", "")
-        token = auth[7:] if auth.lower().startswith("bearer ") else None
-        if not devices.verify(token):
-            return JSONResponse({"detail": "This phone is not paired with DriveMind"}, status_code=401,
-                                headers=MOBILE_CORS)
+        if path not in OPEN_MOBILE:
+            auth = request.headers.get("authorization", "")
+            token = auth[7:] if auth.lower().startswith("bearer ") else None
+            if not devices.verify(token):
+                return JSONResponse({"detail": "This phone is not paired with DriveMind"}, status_code=401,
+                                    headers=MOBILE_CORS)
         resp = await call_next(request)
         for k, v in MOBILE_CORS.items():
             resp.headers[k] = v
-        return resp
+        return _published(request, resp, "phone")
     host = (request.headers.get("host") or "").split(":")[0]
     testing = os.environ.get("DRIVEMIND_TESTING") == "1" and host == "testserver"
     if host not in ALLOWED_HOSTS and not testing:
         return JSONResponse({"detail": "DriveMind only answers on localhost"}, status_code=403)
-    if request.method in ("POST", "PUT", "DELETE") and request.headers.get("x-drivemind") != "1":
+    if request.method in WRITES and request.headers.get("x-drivemind") != "1":
         return JSONResponse({"detail": "missing X-DriveMind header"}, status_code=403)
-    return await call_next(request)
+    return _published(request, await call_next(request), "pc")
 
 
 # ------------------------------------------------------------------ models ---
@@ -575,6 +592,72 @@ def unpair(dev_id: str):
     return {"ok": True}
 
 
+# ------------------------------------------------- weekly report, big files ---
+@app.get("/api/report/weekly")
+def report_weekly(days: int = 7):
+    from .insights import weekly, weekly_text
+    r = weekly(max(1, min(days, 90)))
+    return {**r, "text": weekly_text(r)}
+
+
+class LargeReq(BaseModel):
+    roots: List[str] = []
+    min_mb: int = 500
+
+
+def _large_roots(roots: List[str]) -> List[Path]:
+    if roots:
+        return [Path(r) for r in roots]
+    return [p for k, p in user_folders().items() if p.exists()] + \
+        [p for p in (Path.home() / "Projects", Path.home() / "source") if p.exists()]
+
+
+@app.post("/api/large")
+def find_large(req: LargeReq):
+    """Background job: the biggest files in your folders (or the roots you give)."""
+    from .insights import large_files
+    return {"job": jobs.submit("large", large_files, _large_roots(req.roots), max(1, req.min_mb) * 1024 * 1024)}
+
+
+class PathsReq(BaseModel):
+    paths: List[str]
+
+
+@app.post("/api/plans/large")
+def new_large(req: PathsReq):
+    from .insights import plan_large
+    p = plan_large(req.paths)
+    p.save()
+    return _plan_out(p)
+
+
+# ---------------------------------------------------------------- live sync ---
+@app.get("/api/events")
+def live_events(since: int = 0, timeout: float = 25, boot: Optional[str] = None):
+    """Long-poll: returns as soon as anything changes after `since` (see events.py)."""
+    return events.since(since, timeout, boot)
+
+
+class ClaimReq(BaseModel):
+    pin: str
+    name: str = "Android phone"
+
+
+def discover():
+    return devices.discover_info(getattr(app.state, "port", devices.DEFAULT_PORT))
+
+
+def claim(req: ClaimReq):
+    try:
+        got = devices.claim(req.pin)
+    except PermissionError as e:
+        raise HTTPException(429, str(e))
+    if not got:
+        raise HTTPException(403, "That code is wrong or expired. Make a new one on the PC.")
+    devices.rename(got["id"], req.name)
+    return {**got, "pc": discover()["pc"]}
+
+
 # ---------------------------------------------------------------- phone API ---
 def tidy_now():
     """The phone's 'Tidy now' button: runs only what your settings already allow (Yes items)."""
@@ -619,6 +702,8 @@ for path, fn, methods in [
     ("/settings/temp", set_temp_choice, ["PUT"]), ("/where", where, ["GET"]),
     ("/search", search_files, ["GET"]), ("/ssd", ssd_health, ["GET"]), ("/plans/archive", new_archive, ["POST"]),
     ("/history", history, ["GET"]), ("/scan/latest", latest_scan, ["GET"]), ("/chat", chat, ["POST"]),
+    ("/events", live_events, ["GET"]), ("/discover", discover, ["GET"]), ("/claim", claim, ["POST"]),
+    ("/report/weekly", report_weekly, ["GET"]),
 ]:
     m.add_api_route(path, fn, methods=methods)
 app.mount("/m", m)

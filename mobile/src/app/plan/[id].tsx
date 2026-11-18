@@ -9,7 +9,7 @@ export default function PlanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useConn();
   const toast = useToast();
-  const plan = useLoad(api && id ? () => api.plan(id) : null, [api, id]);
+  const plan = useLoad(api && id ? () => api.plan(id) : null, [api, id], { live: ["plans"] });
   return (
     <Screen refreshing={plan.loading} onRefresh={plan.reload}>
       {plan.error ? <ErrorBox text={plan.error} onRetry={plan.reload} /> : null}

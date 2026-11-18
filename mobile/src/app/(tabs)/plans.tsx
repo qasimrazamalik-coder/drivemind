@@ -25,7 +25,7 @@ function Row({ p }: { p: PlanRow }) {
 
 export default function Plans() {
   const { api } = useConn();
-  const list = useLoad(api ? api.plans : null, [api]);
+  const list = useLoad(api ? api.plans : null, [api], { live: ["plans"], cacheKey: "plans" });
   const waiting = (list.data ?? []).filter((p) => p.summary.waiting && p.status === "proposed");
   const rest = (list.data ?? []).filter((p) => !waiting.includes(p));
   return (

@@ -101,6 +101,8 @@ class Plan(BaseModel):
         conn.execute("INSERT OR REPLACE INTO plans(id, ts, title, status, json) VALUES (?,?,?,?,?)",
                      (self.id, self.created, self.title, self.status, self.model_dump_json()))
         conn.commit()
+        from . import events
+        events.publish("plans", plan=self.id, status=str(getattr(self.status, "value", self.status)))
 
     @classmethod
     def load(cls, plan_id: str) -> Optional["Plan"]:

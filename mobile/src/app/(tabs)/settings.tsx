@@ -17,7 +17,7 @@ const MODES = [
 export default function Settings() {
   const { api, conn, forget } = useConn();
   const toast = useToast();
-  const st = useLoad(api ? api.settings : null, [api]);
+  const st = useLoad(api ? api.settings : null, [api], { live: ["settings"], cacheKey: "settings" });
   const mode = st.data?.settings.mode;
 
   async function pickMode(id: string) {

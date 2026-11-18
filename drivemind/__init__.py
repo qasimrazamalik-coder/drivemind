@@ -5,4 +5,4 @@ Every change is planned first, approved by the user's Yes / Ask / No settings,
 journaled, and reversible.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

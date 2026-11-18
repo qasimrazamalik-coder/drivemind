@@ -12,7 +12,7 @@ type IconName = React.ComponentProps<typeof MaterialIcons>["name"];
 const icon = (name: IconName) => ({ color }: { color: ColorValue }) => <MaterialIcons name={name} size={24} color={typeof color === "string" ? color : undefined} />;
 
 export default function TabLayout() {
-  const { ready, conn, api } = useConn();
+  const { ready, conn, api, ticks } = useConn();
 
   // While the app is open, check the PC for new alerts every minute and show them as phone notifications.
   useEffect(() => {
@@ -34,6 +34,11 @@ export default function TabLayout() {
     };
   }, [api]);
 
+  // Live sync: a new alert on the PC shows on the phone right away, not at the next minute.
+  useEffect(() => {
+    if (api && ticks.notices) checkAlerts(api).catch(() => {});
+  }, [api, ticks.notices]);
+
   if (!ready) return null;
   if (!conn) return <Redirect href="/pair" />;
 
@@ -49,6 +54,7 @@ export default function TabLayout() {
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: icon("donut-large") }} />
       <Tabs.Screen name="plans" options={{ title: "Review", tabBarIcon: icon("fact-check") }} />
       <Tabs.Screen name="search" options={{ title: "Search", tabBarIcon: icon("search") }} />
+      <Tabs.Screen name="ask" options={{ title: "Ask", tabBarIcon: icon("forum") }} />
       <Tabs.Screen name="cleaner" options={{ title: "Cleaner", tabBarIcon: icon("cleaning-services") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: icon("tune") }} />
     </Tabs>

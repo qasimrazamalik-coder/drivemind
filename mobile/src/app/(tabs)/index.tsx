@@ -9,12 +9,13 @@ import { C } from "../../lib/theme";
 import { useToast } from "../../lib/toast";
 
 export default function Home() {
-  const { api, conn } = useConn();
+  const { api, conn, online } = useConn();
   const toast = useToast();
-  const hello = useLoad(api ? api.hello : null, [api]);
-  const tips = useLoad(api ? api.advice : null, [api]);
-  const notices = useLoad(api ? api.notices : null, [api]);
-  const disks = useLoad(api ? api.ssd : null, [api]);
+  const hello = useLoad(api ? api.hello : null, [api], { live: ["status", "plans", "settings", "notices"], cacheKey: "hello" });
+  const tips = useLoad(api ? api.advice : null, [api], { live: ["status", "plans"], cacheKey: "advice" });
+  const notices = useLoad(api ? api.notices : null, [api], { live: ["notices"], cacheKey: "notices" });
+  const disks = useLoad(api ? api.ssd : null, [api], { cacheKey: "ssd" });
+  const week = useLoad(api ? api.weekly : null, [api], { live: ["plans"], cacheKey: "weekly" });
   const [tidying, setTidying] = useState(false);
   const d = hello.data?.drive;
 
@@ -23,6 +24,7 @@ export default function Home() {
     tips.reload();
     notices.reload();
     disks.reload();
+    week.reload();
   };
 
   async function tidy() {
@@ -43,7 +45,13 @@ export default function Home() {
   return (
     <Screen refreshing={hello.loading} onRefresh={refresh}>
       <H1 sub={hello.data ? `${hello.data.pc} · ${hello.data.mode} mode` : `Connecting to ${conn?.pc || conn?.host}…`}>DriveMind</H1>
-      {hello.error ? <ErrorBox text={hello.error} onRetry={refresh} /> : null}
+      {hello.staleSince ? (
+        <Card>
+          <Text style={s.text}>Offline · showing what your PC said {ago(hello.staleSince / 1000)}.</Text>
+          <Text style={s.muted}>Changes need the PC. Pull down to try again.</Text>
+        </Card>
+      ) : hello.error ? <ErrorBox text={hello.error} onRetry={refresh} /> : null}
+      {!online && !hello.error && hello.data ? <Text style={[s.muted, { marginBottom: 8 }]}>Reconnecting to your PC…</Text> : null}
 
       {d ? (
         <Card>
@@ -53,7 +61,8 @@ export default function Home() {
               <Text style={s.h2}>Health {d.score}/100</Text>
               <Pill label={d.status} tone={d.status === "good" ? "yes" : "ask"} />
               <Text style={[s.text, { marginTop: 6 }]}>{human(d.free)} free on {d.drive}</Text>
-              <Text style={s.muted}>{d.days_to_full ? `Full in ~${Math.round(d.days_to_full)} days` : d.trend === "learning" ? "Learning how fast it fills" : "Not filling up"}</Text>
+              <Text style={s.muted}>{!d.days_to_full ? (d.trend === "learning" ? "Learning how fast it fills" : "Not filling up")
+                : d.days_to_full > 365 ? "Full in over a year" : d.days_to_full > 60 ? `Full in ~${Math.round(d.days_to_full / 30)} months` : `Full in ~${Math.round(d.days_to_full)} days`}</Text>
             </View>
           </View>
           <Text style={[s.muted, { marginTop: 12 }]}>{msg}</Text>
@@ -69,6 +78,19 @@ export default function Home() {
           </View>
         ) : null}
       </Card>
+
+      {week.data ? (
+        <Card title="This week">
+          <View style={[s.row, { justifyContent: "space-between" }]}>
+            <View><Text style={s.h2}>{human(week.data.freed_bytes)}</Text><Text style={s.muted}>freed</Text></View>
+            <View><Text style={s.h2}>{week.data.moved_files}</Text><Text style={s.muted}>files organized</Text></View>
+            <View>
+              <Text style={s.h2}>{week.data.growth_bytes == null ? "–" : `${week.data.growth_bytes >= 0 ? "+" : "−"}${human(Math.abs(week.data.growth_bytes))}`}</Text>
+              <Text style={s.muted}>drive change</Text>
+            </View>
+          </View>
+        </Card>
+      ) : null}
 
       <Card title="Top fixes">
         {tips.data?.tips.length ? (

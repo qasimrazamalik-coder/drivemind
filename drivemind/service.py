@@ -31,6 +31,8 @@ def notify(level: str, title: str, body: str = "", plan_id: Optional[str] = None
     conn.execute("INSERT INTO notices(ts, level, title, body, plan_id) VALUES (?,?,?,?,?)",
                  (time.time(), level, title, body, plan_id))
     conn.commit()
+    from . import events
+    events.publish("notices", level=level, title=title)
     _toast(title, body)
 
 
@@ -93,6 +95,8 @@ class Guardian:
         s = Settings.load()
         for d in list_drives():
             record_snapshot(d)
+        from . import events
+        events.publish("status", source="guardian")
         if s.decision("low_space_alert") != Decision.NO:
             st = drive_status(system_drive(), s.low_space_percent)
             if st and st.status != "good":
@@ -128,6 +132,13 @@ class Guardian:
             for d in disk_health():
                 if d["status"] != "good":
                     notify(d["status"], f"Disk check: {d['name']} needs attention", "; ".join(d["notes"])[:200])
+
+        # Weekly report: one notice (and phone notification) summing up the week. Starts a week
+        # after install rather than reporting an empty week on day one.
+        self.last_run.setdefault("weekly_report", time.time())
+        if self._due("weekly_report", 7 * 86400):
+            from .insights import weekly, weekly_text
+            notify("info", "Your week with DriveMind", weekly_text(weekly(7)))
 
         if heavy_ok and self._due("weekly_clean", 7 * 86400):
             if s.decision("weekly_cache_clean") != Decision.NO:

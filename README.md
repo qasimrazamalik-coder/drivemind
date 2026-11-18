@@ -37,7 +37,10 @@ DriveMind organizes your files, clears caches and temporary junk, finds duplicat
 | **Assistant** | Ask in English or Roman Urdu: *what is eating my space?*, *find my Dubai invoice*, *C drive saaf karo*. Common questions go straight to DriveMind's own tools; anything else is answered from your indexed documents (RAG), with the files cited. If a local model is running (Ollama), it writes the answer from those facts only; without one, DriveMind answers from the same facts. Nothing leaves the PC. |
 | **MCP server** | `drivemind mcp` lets Claude, Cursor or any MCP client check drive health, search files, explain folders and propose cleanups. Plans it builds still wait for your approval: the MCP tools cannot approve. |
 | **Apps & startup** | Installed apps by size and install date, and the apps that start with Windows, each with an on/off switch that works exactly like Task Manager (current user only, reversible). |
-| **Android app** | Pair by QR code over Wi-Fi. See drive health and alerts, approve, reject or undo plans, "Tidy now", Yes / Ask / No switches and mode. Everything syncs with the PC instantly. See `mobile/README.md`. |
+| **Android app** | Tap **Find my PC** and type the 6-digit code your PC shows (or scan the QR code). See drive health, this week's report and alerts, approve, reject or undo plans, "Tidy now", Yes / Ask / No switches and mode, and **Ask** the assistant. Keeps the last data on the phone, so it still shows something when you are away from home. See `mobile/README.md`. |
+| **Live sync** | The PC dashboard and the phone update the moment anything changes on either side: a plan approved on the phone, an alert from the guardian, a finished scan, a new paired phone. Typically well under a second on home Wi-Fi. Plain HTTP long-polling, so it needs nothing extra on Android. |
+| **This week** | A weekly report on the Overview, the phone and as a notification: space freed, files organized, plans applied and how much the drive grew. Taken from the undo journal and daily snapshots, never estimated. |
+| **Large files** | The biggest files in your folders with when you last used them. Pick what to let go; it goes to quarantine for 30 days. Large files are never removed automatically, not even on Autopilot. |
 | **What is this folder?** | Built-in knowledge of about 30 common folders (WinSxS, node_modules, Installer…), with the local AI as a fallback. |
 
 ## Settings: Yes / Ask / No
@@ -63,6 +66,7 @@ AI guesses below 80% confidence always wait for you, whatever the mode.
 - Every completed step is written to the journal before the next one starts, so undo works even after a crash.
 - The local API answers only on `127.0.0.1`. It requires an `X-DriveMind` header, so other websites cannot drive it, and it checks the Host header to block DNS rebinding.
 - Phones use a separate `/m` API on your Wi-Fi. Every call needs that phone's own token (only a hash is stored), and you can remove a phone at any time. The PC listens on Wi-Fi only once a phone is paired.
+- Before pairing, a phone can only ask "is DriveMind here?" (it learns the PC's name) and trade a 6-digit code for its token. A code works once, for 5 minutes, and code pairing locks for 5 minutes after 8 wrong codes. Pressing "Pair a phone" again replaces any pairing no phone has used, and unused pairings expire after 15 minutes.
 
 ## Command line
 
@@ -88,6 +92,8 @@ drivemind shell install|uninstall|autostart-on|autostart-off
 drivemind serve                         dashboard + background guardian (+ phone sync once paired)
 drivemind pair                          pair a phone without the dashboard (prints a code)
 drivemind chat "what is eating my space?"   ask the assistant
+drivemind report [--days 7]             what DriveMind did this week
+drivemind large [folders] [--min-mb 500]  the biggest files in your folders
 drivemind mcp                           MCP server over stdio (for Claude, Cursor…)
 ```
 
@@ -132,7 +138,9 @@ drivemind/
   winshell.py    Explorer right-click menu, autostart (HKCU only)
   api.py         local FastAPI server
   cli.py         command line
-  devices.py     phone pairing tokens, QR code, Wi-Fi address
+  devices.py     phone pairing tokens, 6-digit codes, QR code, Wi-Fi address
+  events.py      live sync: change events the dashboard and phone long-poll
+  insights.py    weekly report and the large-file finder
   archiver.py    git-safe zip archiving of idle projects
   search.py      full-text file search (SQLite FTS5)
   ssd.py         disk health from reliability counters
@@ -149,16 +157,16 @@ mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 
 ```bash
 pip install -e ".[dev,all]"
-pytest -q          # 50 tests, run on Windows and Ubuntu in CI
+pytest -q          # 63 tests, run on Windows and Ubuntu (Python 3.11 and 3.13) in CI
 cd mobile && npm install && npx tsc --noEmit   # typecheck the Android app
 ```
 
 ## Not done yet
 
-- **Not yet run on real hardware:** Windows (tray, Known Folder moves, Explorer menu, disk counters) and an Android phone. CI runs the tests on Windows once the repo is pushed.
+- **Not yet tried by hand on a real PC or phone:** the tray icon, Known Folder moves, the Explorer menu, disk counters, and the Android app on a device. The test suite does run on Windows in CI.
 - **Elevated helper:** fast MFT scan and the admin-only caches (Windows Update, Prefetch, Delivery Optimization).
 - **Image understanding:** screenshot OCR, photo albums and "find the photo of…" search (CLIP).
-- **Phone away from home:** needs a relay or Tailscale. Instant push (FCM) instead of the 15-minute background check.
+- **Phone away from home:** needs a relay or Tailscale. While the app is closed, alerts still arrive by the 15-minute background check; instant push (FCM) would need a server.
 - **Signed installer (MSIX) and auto-update.**
 
 ## License

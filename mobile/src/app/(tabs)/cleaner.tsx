@@ -11,7 +11,7 @@ import { useToast } from "../../lib/toast";
 export default function Cleaner() {
   const { api } = useConn();
   const toast = useToast();
-  const caches = useLoad(api ? api.caches : null, [api]);
+  const caches = useLoad(api ? api.caches : null, [api], { live: ["plans", "settings"], cacheKey: "caches" });
   const [busy, setBusy] = useState<"clean" | "temp" | "archive" | null>(null);
 
   async function setChoice(row: CacheRow, v: Decision) {

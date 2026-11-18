@@ -29,6 +29,10 @@ def submit(kind: str, fn: Callable[..., Any], *args, **kwargs) -> str:
             with _lock:
                 _jobs[job_id].update(status="error", error=f"{type(e).__name__}: {e}",
                                      trace=traceback.format_exc()[-1500:], finished=time.time())
+        from . import events
+        events.publish("jobs", job=job_id, job_kind=kind, status=_jobs[job_id]["status"])
+        if kind in ("scan", "index"):
+            events.publish(kind, job=job_id)
 
     _pool.submit(run)
     return job_id

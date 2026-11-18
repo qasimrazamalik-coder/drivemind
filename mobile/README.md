@@ -12,7 +12,8 @@ The phone companion for DriveMind. It connects to DriveMind on your PC over your
 ## Pair the phone
 
 1. On the PC, run DriveMind (`scripts\DriveMind.bat`), then open **Settings > Phone > Pair a phone**.
-2. In the app, tap **Scan code**, or tap **Enter code** and type the code shown on the PC (`192.168.x.x:7878#…`).
+2. In the app, tap **Find my PC**, pick your PC and type the 6-digit code it shows. The code works once, for 5 minutes.
+   No luck finding it (some routers block devices from seeing each other)? Tap **Scan code** instead, or type the long code under "Typing it by hand instead?" on the PC.
 3. The first time, Windows may ask to allow Python on the network. Choose **Private networks**.
 
 Each phone gets its own secret token, and the PC stores only a hash of it. To remove a phone, use **Settings > Phone > Remove** on the PC. The PC dashboard itself is never reachable over Wi-Fi; only the token-protected `/m` phone API is.
@@ -38,15 +39,19 @@ Package name: `com.qasimrazamalik.drivemind`. Cleartext HTTP is enabled through 
 
 ```text
 src/app/_layout.tsx          stack + providers
-src/app/pair.tsx             QR scan / typed code / drivemind://pair deep link
-src/app/(tabs)/              Home, Review, Search, Cleaner, Settings
+src/app/pair.tsx             Find my PC + 6-digit code / QR scan / typed code / drivemind://pair deep link
+src/app/(tabs)/              Home, Review, Search, Ask, Cleaner, Settings
 src/app/plan/[id].tsx        review one plan
 src/components/              UI kit (Card, Btn, Seg, Ring, Pill) and PlanView
 src/lib/api.ts               typed client for the PC's /m API
-src/lib/conn.tsx             saved connection + data hook
+src/lib/conn.tsx             saved connection, live sync (long-polls /m/events), data hook with offline copy
 src/lib/alerts.ts            local notifications for PC alerts
 src/lib/background.ts        background alert check (expo-background-task)
 ```
+
+## Live sync and offline
+
+While the app is open it keeps one request waiting at the PC (`/m/events`). The PC answers the moment something changes, and the screens showing that data reload, typically in well under a second. Each screen also keeps its last answer on the phone; when the PC can't be reached, the app shows that copy with "Offline · showing what your PC said …".
 
 ## Not yet
 
