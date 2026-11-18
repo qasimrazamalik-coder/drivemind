@@ -46,6 +46,11 @@ class ScanResult:
     dir_sizes: Dict[str, int] = field(default_factory=dict)
     ext_sizes: Dict[str, int] = field(default_factory=dict)
     largest_files: List[FileInfo] = field(default_factory=list)
+    # breakdowns for the charts: label -> [file count, bytes]
+    categories: Dict[str, List[int]] = field(default_factory=dict)
+    age_buckets: Dict[str, List[int]] = field(default_factory=dict)
+    size_buckets: Dict[str, List[int]] = field(default_factory=dict)
+    stale_large: List[FileInfo] = field(default_factory=list)  # big files untouched for 6+ months
 
     def top_children(self, n: int = 15) -> List[tuple]:
         """Biggest direct children of the scanned root: [(path, size), ...]."""
@@ -94,6 +99,18 @@ def iter_files(root: Path, skip_dir: Optional[Callable[[Path], bool]] = None,
                 yield FileInfo(p, st.st_size, st.st_mtime, st.st_atime)
 
 
+AGE_EDGES = [(30, "< 1 month"), (182, "1–6 months"), (365, "6–12 months"), (3 * 365, "1–3 years"), (10 ** 9, "3+ years")]
+SIZE_EDGES = [(1 << 20, "< 1 MB"), (100 << 20, "1–100 MB"), (1 << 30, "100 MB–1 GB"), (1 << 62, "> 1 GB")]
+STALE_LARGE_BYTES, STALE_DAYS = 100 << 20, 182
+
+
+def _bucket(edges, value) -> str:
+    for edge, label in edges:
+        if value < edge:
+            return label
+    return edges[-1][1]
+
+
 def scan(root: Path, top_n: int = 50, skip_dir: Optional[Callable[[Path], bool]] = None,
          progress: Optional[Callable[[int], None]] = None) -> ScanResult:
     root = Path(root).resolve()
@@ -104,6 +121,12 @@ def scan(root: Path, top_n: int = 50, skip_dir: Optional[Callable[[Path], bool]]
     heap: List[tuple] = []
     seen_dirs = set()
     root_str = str(root)
+    from .classify import EXT_CATEGORY
+    now = time.time()
+    cats: Dict[str, List[int]] = defaultdict(lambda: [0, 0])
+    ages: Dict[str, List[int]] = {label: [0, 0] for _, label in AGE_EDGES}
+    sizes: Dict[str, List[int]] = {label: [0, 0] for _, label in SIZE_EDGES}
+    stale: List[tuple] = []
 
     stack = [root]
     while stack:
@@ -139,7 +162,20 @@ def scan(root: Path, top_n: int = 50, skip_dir: Optional[Callable[[Path], bool]]
                 size = st.st_size
                 res.total_size += size
                 res.file_count += 1
-                ext_sizes[p.suffix.lower() or "(none)"] += size
+                ext = p.suffix.lower()
+                ext_sizes[ext or "(none)"] += size
+                c = cats[EXT_CATEGORY.get(ext, "Other")]
+                c[0] += 1
+                c[1] += size
+                age_days = (now - st.st_mtime) / 86400
+                a = ages[_bucket(AGE_EDGES, age_days)]
+                a[0] += 1
+                a[1] += size
+                b = sizes[_bucket(SIZE_EDGES, size)]
+                b[0] += 1
+                b[1] += size
+                if size >= STALE_LARGE_BYTES and (now - max(st.st_mtime, st.st_atime)) / 86400 >= STALE_DAYS:
+                    stale.append((size, str(p), st.st_mtime, st.st_atime))
                 # add size to every ancestor up to the root
                 parent = folder
                 while True:
@@ -158,6 +194,9 @@ def scan(root: Path, top_n: int = 50, skip_dir: Optional[Callable[[Path], bool]]
     res.dir_sizes = dict(dir_sizes)
     res.ext_sizes = dict(sorted(ext_sizes.items(), key=lambda x: x[1], reverse=True))
     res.largest_files = [FileInfo(Path(p), s, m, a) for s, p, m, a in sorted(heap, reverse=True)]
+    res.categories = dict(sorted(cats.items(), key=lambda kv: kv[1][1], reverse=True))
+    res.age_buckets, res.size_buckets = ages, sizes
+    res.stale_large = [FileInfo(Path(p), s, m, a) for s, p, m, a in sorted(stale, reverse=True)[:50]]
     res.seconds = time.perf_counter() - t0
     return res
 

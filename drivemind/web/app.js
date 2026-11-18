@@ -38,10 +38,13 @@ const loaders = {};
 function show(view) {
   $$("#nav a").forEach((a) => a.classList.toggle("on", a.dataset.view === view));
   $$(".page").forEach((p) => p.classList.toggle("on", p.dataset.page === view));
+  if (!$(`[data-page="${view}"]`)) view = "home";
   history.replaceState(null, "", "#" + view);
+  window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
   loaders[view]?.();
 }
-$$("#nav a").forEach((a) => a.addEventListener("click", () => show(a.dataset.view)));
+$$("#nav a").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); show(a.dataset.view); }));
+window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (v && $(`[data-page="${v}"]`)) show(v); });
 
 // ---------------------------------------------------------- shared pieces --
 function seg(current, onPick, disabled = false) {
@@ -60,24 +63,32 @@ function seg(current, onPick, disabled = false) {
 }
 
 function ring(percentUsed, status) {
-  const r = 62, c = 2 * Math.PI * r, used = Math.min(100, Math.max(0, percentUsed));
+  const r = 58, c = 2 * Math.PI * r, used = Math.min(100, Math.max(0, percentUsed));
   const color = status === "critical" ? "var(--bad)" : status === "watch" ? "var(--warn)" : "var(--accent)";
-  return `<svg class="ring" viewBox="0 0 150 150" role="img" aria-label="${used.toFixed(0)}% used">
-    <circle cx="75" cy="75" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/>
-    <circle cx="75" cy="75" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"
-      stroke-dasharray="${(c * used) / 100} ${c}" transform="rotate(-90 75 75)"/>
-    <text x="75" y="80" text-anchor="middle">${used.toFixed(0)}%</text>
-    <text x="75" y="100" text-anchor="middle" class="lbl">used</text></svg>`;
+  return `<svg class="ring" viewBox="0 0 140 140" role="img" aria-label="${used.toFixed(0)}% used">
+    <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/>
+    <circle class="arc" cx="70" cy="70" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="0 ${c}" data-to="${(c * used) / 100} ${c}" transform="rotate(-90 70 70)"/>
+    <text x="70" y="76" text-anchor="middle">${used.toFixed(0)}%</text>
+    <text x="70" y="96" text-anchor="middle" class="lbl">used</text></svg>`;
 }
+const animateRings = (root = document) => requestAnimationFrame(() => $$(".ring .arc", root).forEach((a) => a.setAttribute("stroke-dasharray", a.dataset.to)));
 
-function bars(rows, total, label = (r) => r.path) {
-  if (!rows.length) return `<p class="empty">Nothing here.</p>`;
-  const max = Math.max(...rows.map((r) => r.size), 1);
-  return `<div class="bars">${rows.map((r) => `
-    <div class="brow"><div class="track"><span class="fill" style="width:${(100 * r.size) / max}%"></span>
-      <span class="name path" title="${esc(r.path || r.ext)}">${esc(label(r))}</span></div>
-      <span class="num">${human(r.size)}</span></div>`).join("")}</div>`;
+// ------------------------------------------------------------------ theme --
+const THEMES = ["system", "light", "dark"];
+function applyTheme(t) {
+  if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  $("#theme-name").textContent = t[0].toUpperCase() + t.slice(1);
+  $("#theme-ico").innerHTML = {
+    system: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
+    light: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9 13 13M3 13l1.1-1.1M11.9 4.1 13 3"/></g></svg>',
+    dark: '<svg viewBox="0 0 16 16"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>' }[t];
+  try { localStorage.setItem("dm-theme", t); } catch (e) { /* storage blocked: theme still applies for this visit */ }
 }
+let theme = "system";
+try { theme = localStorage.getItem("dm-theme") || "system"; } catch (e) {}
+applyTheme(theme);
+$("#theme-btn").onclick = () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme); };
 
 // -------------------------------------------------------------- plan view --
 const sepOf = (p) => (p.includes("\\") ? "\\" : "/");
@@ -142,37 +153,64 @@ function renderPlan(target, plan) {
   })));
 }
 
-// ------------------------------------------------------------------- home --
-let status = null;
-loaders.home = async () => {
-  try {
-    status = await api("/api/status");
-    $("#ver").textContent = "v" + status.version;
-    $("#mode-pill").textContent = status.mode;
-    const sys = status.drives.find((d) => d.drive === status.system_drive) || status.drives[0];
-    if (!$("#scan-root").value) $("#scan-root").value = sys?.drive || "/";
-    if (sys) {
-      const msg = { good: "Plenty of room.", watch: "Getting full — worth a clean.", critical: "Almost full — fix this now." }[sys.status];
-      $("#home-sub").textContent = `${sys.drive} has ${human(sys.free)} free. ${msg}`;
+// --------------------------------------------------------------- overview --
+let status = null, lastScan = null, histDays = 30;
+const fullIn = (d) => !d.days_to_full ? (d.trend === "learning" ? "Learning" : "Not filling")
+  : d.days_to_full > 365 ? "Over a year" : d.days_to_full > 60 ? `~${Math.round(d.days_to_full / 30)} months` : `~${Math.round(d.days_to_full)} days`;
+
+async function refreshStatus() {
+  status = await api("/api/status");
+  $("#ver").textContent = "v" + status.version;
+  $("#mode-pill").textContent = status.mode;
+  const sys = status.drives.find((d) => d.drive === status.system_drive) || status.drives[0];
+  if (!$("#scan-root").value) $("#scan-root").value = sys?.drive || "/";
+  if (sys) {
+    const msg = { good: "Plenty of room.", watch: "Getting full — worth a clean.", critical: "Almost full — fix this now." }[sys.status];
+    $("#home-sub").textContent = `${sys.drive} has ${human(sys.free)} free. ${msg}`;
+    Charts.countUp($("#k-free"), sys.free, (v) => human(v));
+    $("#k-free-sub").textContent = `${sys.free_percent}% of ${human(sys.used + sys.free)}`;
+    Charts.countUp($("#k-health"), sys.score, (v) => `${Math.round(v)}/100`);
+    $("#k-health-sub").innerHTML = `<span class="pill ${sys.status === "good" ? "yes" : "ask"}">${esc(sys.status)}</span>`;
+    $("#k-full").textContent = fullIn(sys);
+    $("#k-full-sub").textContent = sys.days_to_full ? "at the current rate" : sys.trend === "learning" ? "needs a few days of history" : "usage is steady";
+    const heroKey = `${sys.free}-${sys.status}`;
+    if ($("#hero").dataset.k !== heroKey) {
+      $("#hero").dataset.k = heroKey;
       $("#hero").innerHTML = `${ring(100 - sys.free_percent, sys.status)}<div>
-        <p class="big">Health ${sys.score}/100</p><span class="pill ${sys.status === "good" ? "yes" : "ask"}">${esc(sys.status)}</span>
-        <dl><dt>Free</dt><dd>${human(sys.free)}</dd><dt>Used</dt><dd>${human(sys.used)}</dd><dt>Size</dt><dd>${human(sys.total)}</dd>
-        <dt>Full in</dt><dd>${sys.days_to_full ? `~${Math.round(sys.days_to_full)} days` : sys.trend === "learning" ? "learning (needs a few days)" : "not filling up"}</dd></dl></div>`;
+        <p class="big">${esc(sys.drive)}</p>
+        <dl><dt>Free</dt><dd>${human(sys.free)}</dd><dt>Used</dt><dd>${human(sys.used)}</dd><dt>Capacity</dt><dd>${human(sys.used + sys.free)}</dd>
+        <dt>Health</dt><dd>${sys.score}/100</dd></dl></div>`;
+      animateRings($("#hero"));
     }
-    $("#drives").innerHTML = status.drives.map((d) => `<div class="drive"><b>${esc(d.drive)}</b>
-      <div class="bar ${d.status}"><i style="width:${100 - d.free_percent}%"></i></div>
-      <span class="muted">${human(d.free)} free of ${human(d.total)}</span></div>`).join("");
-  } catch (e) { toast(e.message, true); }
+  }
+  $("#drives").innerHTML = status.drives.map((d) => `<div class="drive"><b>${esc(d.drive)}</b>
+    <div class="bar ${d.status}"><i style="width:${100 - d.free_percent}%"></i></div>
+    <span class="muted">${human(d.free)} free of ${human(d.used + d.free)}</span></div>`).join("");
+  const waiting = (await api("/api/plans")).filter((p) => p.status === "proposed").reduce((a, p) => a + p.summary.waiting, 0);
+  Charts.countUp($("#k-wait"), waiting);
+}
+
+async function loadHistory() {
+  const h = await api(`/api/history?days=${histDays}`);
+  Charts.area($("#area"), h.points);
+}
+$$("#range button").forEach((b) => b.onclick = () => {
+  $$("#range button").forEach((x) => x.classList.toggle("on", x === b)); histDays = Number(b.dataset.days); loadHistory();
+});
+
+loaders.home = async () => {
+  try { await refreshStatus(); } catch (e) { toast(e.message, true); }
+  loadHistory().catch(() => {});
   loadNotices();
   api("/api/advice").then((a) => {
     $("#tips").innerHTML = a.tips.length ? a.tips.map((t) => `<div class="tip"><b>${esc(t.title)}</b><p>${esc(t.detail)}</p>
       <button class="btn sm" data-tip="${esc(t.action)}">Fix</button></div>`).join("")
       : (status?.drives?.find((d) => d.drive === status.system_drive)?.status || "good") === "good"
         ? `<p class="muted">No big wins right now. Your drive is in good shape.</p>`
-        : `<p class="muted">No single cache or project is the culprit. Scan the drive below to see which folders take the space.</p>`;
+        : `<p class="muted">No single cache or project is the culprit. Scan the drive to see which folders take the space.</p>`;
     $$("[data-tip]").forEach((b) => b.onclick = () => show({ clean_caches: "caches", clean_dev_junk: "more", move_user_folders: "folders" }[b.dataset.tip] || "home"));
   }).catch(() => ($("#tips").innerHTML = `<p class="muted">Could not build tips.</p>`));
-  api("/api/scan/latest").then((s) => s.root && renderScan(s));
+  api("/api/scan/latest").then((s) => (s.root ? renderScan(s) : renderScan(null)));
   api("/api/ssd").then((disks) => {
     $("#ssd").innerHTML = disks.length ? `<div class="list">${disks.map((d) => `<div class="li"><div><b>${esc(d.name)}</b>
       <div class="meta">${esc([d.media, d.bus, d.size_gb ? d.size_gb + " GB" : ""].filter(Boolean).join(" · "))}</div>
@@ -181,6 +219,12 @@ loaders.home = async () => {
   }).catch(() => ($("#ssd").innerHTML = `<p class="muted">Could not read disk health.</p>`));
 };
 
+// live: refresh numbers every 30 s while the Overview is visible
+setInterval(() => {
+  if (document.hidden || !$('[data-page="home"]').classList.contains("on")) return;
+  refreshStatus().then(() => $("#live").classList.remove("off")).catch(() => $("#live").classList.add("off"));
+}, 30000);
+
 async function loadNotices() {
   const n = await api("/api/notices");
   $("#notices").innerHTML = n.length ? n.slice(0, 8).map((x) => `<div class="notice ${esc(x.level)}"><b>${esc(x.title)}</b>
@@ -188,18 +232,36 @@ async function loadNotices() {
 }
 $("#read-btn").onclick = async () => { await api("/api/notices/read", "POST"); loadNotices(); };
 
+let ageBy = "size", sizeBy = "size";
 function renderScan(s) {
-  $("#scan-out").innerHTML = `<p class="muted">${human(s.total_size)} in ${s.file_count.toLocaleString()} files · ${s.seconds}s
-    ${s.cloud_skipped ? ` · ${s.cloud_skipped} cloud-only files skipped (not downloaded)` : ""}</p>
-    ${bars(s.children, s.total_size, (r) => r.path.split(/[\\/]/).pop() || r.path)}
-    <div class="cols"><div><h3>Largest files</h3>${bars(s.largest_files.slice(0, 10), 0, (r) => r.path.split(/[\\/]/).pop())}</div>
-    <div><h3>By file type</h3>${bars(s.by_type.slice(0, 10), 0, (r) => r.ext)}</div></div>
-    ${s.growth.length ? `<h3 class="muted" style="margin-top:16px">Grew since the last scan</h3>${bars(s.growth.filter((g) => g.delta > 0).slice(0, 6).map((g) => ({ path: g.path, size: g.delta })), 0, (r) => rel(r.path, s.root))}` : ""}`;
+  lastScan = s;
+  if (!s) {
+    Charts.treemap($("#treemap"), []);
+    ["#donut", "#ages", "#sizes"].forEach((id) => ($(id).innerHTML = `<p class="muted empty-chart">Appears after a scan.</p>`));
+    return;
+  }
+  $("#scan-meta").textContent = `${s.root} · ${human(s.total_size)} in ${s.file_count.toLocaleString()} files · scanned in ${s.seconds}s` +
+    (s.cloud_skipped ? ` · ${s.cloud_skipped} cloud-only files skipped (not downloaded)` : "");
+  Charts.treemap($("#treemap"), s.tree || [], { onPick: (n) => { show("more"); $("#explain-path").value = n.path; $("#explain-btn").click(); } });
+  Charts.donut($("#donut"), (s.categories || []).filter((c) => c.size > 0), { label: "by file type", value: human(s.total_size) });
+  Charts.bars($("#ages"), s.ages || [], { by: ageBy, colorIndex: 1 });
+  Charts.bars($("#sizes"), s.sizes || [], { by: sizeBy, colorIndex: 4 });
+  $("#stale").innerHTML = (s.stale_large || []).length ? `<div class="list">${s.stale_large.slice(0, 8).map((f) => `<div class="li"><div>
+      <b>${esc(f.path.split(/[\\/]/).pop())}</b><div class="path muted">${esc(f.path)}</div></div>
+      <span class="num">${human(f.size)}<br>${new Date(Math.max(f.mtime, f.atime) * 1000).toLocaleDateString()}</span></div>`).join("")}</div>`
+    : `<p class="muted">No files over 100 MB have sat untouched for 6 months. Nice.</p>`;
 }
+const segToggle = (sel, set) => $$(`${sel} button`).forEach((b) => b.onclick = () => {
+  $$(`${sel} button`).forEach((x) => x.classList.toggle("on", x === b)); set(b.dataset.by); renderScan(lastScan);
+});
+segToggle("#age-by", (v) => (ageBy = v));
+segToggle("#size-by", (v) => (sizeBy = v));
+window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz = setTimeout(() => { if (lastScan) renderScan(lastScan); loadHistory().catch(() => {}); }, 250); });
 
 $("#scan-btn").onclick = (e) => busy(e.target, async () => {
   const { job } = await api("/api/scan", "POST", { root: $("#scan-root").value });
-  $("#scan-out").innerHTML = `<p class="muted">Scanning… large drives take a minute.</p>`;
+  $("#scan-meta").textContent = "Scanning… large drives take a minute.";
+  $("#treemap").innerHTML = `<div class="skeleton" style="height:260px"></div>`;
   for (;;) {
     await new Promise((r) => setTimeout(r, 700));
     const j = await api(`/api/jobs/${job}`);
@@ -220,6 +282,7 @@ async function runSearch() {
     : `<p class="muted">Nothing found. If you have not indexed yet, press “Refresh index now”.</p>`}</div>`;
 }
 $("#q-btn").onclick = (e) => busy(e.target, runSearch);
+$("#q").addEventListener("input", () => { clearTimeout(window._qt); window._qt = setTimeout(() => $("#q").value.trim().length > 2 && runSearch().catch(() => {}), 350); });
 $("#q").addEventListener("keydown", (e) => e.key === "Enter" && runSearch().catch((x) => toast(x.message, true)));
 $("#idx-btn").onclick = (e) => busy(e.target, async () => {
   const { job } = await api("/api/search/index", "POST", { roots: [] });
@@ -251,6 +314,9 @@ loaders.caches = async () => {
   const rows = await api("/api/caches");
   const total = rows.filter((r) => !r.display_only).reduce((a, r) => a + r.size, 0);
   $("#cache-total").textContent = `Caches · ${human(total)} can be cleared`;
+  const sized = rows.filter((r) => r.size > 0 && !r.display_only).sort((a, b) => b.size - a.size).slice(0, 8);
+  if (sized.length) Charts.bars($("#cache-chart"), sized.map((r) => ({ name: r.name.split(" (")[0], size: r.size, count: r.paths.length })));
+  else $("#cache-chart").innerHTML = "";
   const tbl = $("#cache-tbl");
   tbl.innerHTML = `<thead><tr><th>Cache</th><th>If cleared</th><th>Size</th><th>Default</th></tr></thead><tbody></tbody>`;
   rows.sort((a, b) => (b.paths.length || b.command ? 1 : 0) - (a.paths.length || a.command ? 1 : 0) || b.size - a.size);
@@ -329,6 +395,75 @@ $("#where-btn").onclick = (e) => busy(e.target, async () => {
     : `<p class="muted">DriveMind has not moved anything with that name.</p>`;
 });
 
+// ------------------------------------------------------------------- apps --
+let appsData = [], appsSort = "size";
+function renderApps() {
+  const f = $("#apps-filter").value.trim().toLowerCase();
+  let rows = appsData.filter((a) => !f || a.name.toLowerCase().includes(f) || a.publisher.toLowerCase().includes(f));
+  rows = [...rows].sort((a, b) => appsSort === "name" ? a.name.localeCompare(b.name)
+    : appsSort === "installed" ? (a.installed || "9999").localeCompare(b.installed || "9999") : b.size - a.size);
+  $("#apps").innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>App</th><th>Installed</th><th>Drive</th><th class="num">Size</th></tr></thead><tbody>${rows.slice(0, 200).map((a) =>
+    `<tr><td>${esc(a.name)}<div class="desc">${esc([a.publisher, a.version].filter(Boolean).join(" · "))}</div></td><td>${esc(a.installed || "–")}</td>
+     <td>${esc(a.drive || "–")}</td><td class="num">${a.size ? human(a.size) : "–"}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="muted">${appsData.length ? "No app matches." : "Installed apps are read from Windows. None were found on this machine."}</p>`;
+}
+loaders.apps = async () => {
+  appsData = await api("/api/apps");
+  const total = appsData.reduce((a, x) => a + x.size, 0);
+  $("#apps-title").textContent = appsData.length ? `Installed apps · ${appsData.length} · ${human(total)}` : "Installed apps";
+  const top = appsData.filter((a) => a.size).slice(0, 8);
+  if (top.length) Charts.bars($("#apps-chart"), top.map((a) => ({ name: a.name, size: a.size, count: 1 })), { colorIndex: 1 });
+  renderApps();
+  const st = await api("/api/startup");
+  $("#startup-count").textContent = st.length ? `${st.filter((x) => x.enabled).length} of ${st.length} on` : "";
+  $("#startup").innerHTML = st.length ? "" : `<p class="muted">Startup apps are read from Windows. None were found on this machine.</p>`;
+  st.forEach((x) => {
+    const row = document.createElement("div"); row.className = "li";
+    row.innerHTML = `<div><b>${esc(x.name)}</b><div class="meta path">${esc(x.command)}</div><div class="meta">${esc(x.source)}${x.can_toggle ? "" : " · read-only"}</div></div>`;
+    const sw = document.createElement("button"); sw.className = "switch"; sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", x.enabled); sw.setAttribute("aria-label", `Start ${x.name} with Windows`); sw.disabled = !x.can_toggle;
+    sw.onclick = async () => {
+      const next = sw.getAttribute("aria-checked") !== "true";
+      try { await api("/api/startup", "PUT", { name: x.name, enabled: next }); sw.setAttribute("aria-checked", next); toast(`${x.name} ${next ? "will" : "won't"} start with Windows`); }
+      catch (e) { toast(e.message, true); }
+    };
+    row.appendChild(sw); $("#startup").appendChild(row);
+  });
+};
+$("#apps-filter").addEventListener("input", renderApps);
+$$("#apps-sort button").forEach((b) => b.onclick = () => { $$("#apps-sort button").forEach((x) => x.classList.toggle("on", x === b)); appsSort = b.dataset.sort; renderApps(); });
+
+// -------------------------------------------------------------- assistant --
+const chatLog = [];
+function openChat(open) {
+  $("#chat").classList.toggle("open", open); $("#chat").setAttribute("aria-hidden", !open);
+  $("#chat-fab").classList.toggle("hidden", open); $("#chat-fab").setAttribute("aria-expanded", open);
+  if (open) setTimeout(() => $("#chat-in").focus(), 150);
+}
+$("#chat-fab").onclick = () => openChat(true);
+$("#chat-close").onclick = () => openChat(false);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#chat").classList.contains("open")) openChat(false); });
+function addMsg(role, html) {
+  const m = document.createElement("div"); m.className = `msg ${role}`; m.innerHTML = html;
+  $("#chat-log").appendChild(m); $("#chat-log").scrollTop = $("#chat-log").scrollHeight; return m;
+}
+async function ask(q) {
+  q = q.trim(); if (!q) return;
+  addMsg("user", esc(q));
+  const wait = addMsg("bot", `<span class="typing" aria-label="Thinking"><i></i><i></i><i></i></span>`);
+  try {
+    const r = await api("/api/chat", "POST", { question: q, history: chatLog.slice(-6) });
+    chatLog.push({ role: "user", content: q }, { role: "assistant", content: r.answer });
+    const srcs = r.sources.length ? `<div class="srcs">${r.sources.map((s, i) => `<span class="src"><b>[${i + 1}] ${esc(s.name)}</b> — ${esc(s.path)}</span>`).join("")}</div>` : "";
+    const acts = r.actions.length ? `<div class="chips">${r.actions.map((a) => `<button class="chip" data-go="${esc(a.target)}">${esc(a.label)}</button>`).join("")}</div>` : "";
+    wait.innerHTML = `${esc(r.answer)}${srcs}${acts}<span class="ai-tag">${r.ai ? "Written by your local AI from the facts above" : "From DriveMind's own data"}</span>`;
+    $$("[data-go]", wait).forEach((b) => b.onclick = () => { openChat(false); show(b.dataset.go); });
+  } catch (e) { wait.textContent = e.message; }
+  $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+}
+$("#chat-form").addEventListener("submit", (e) => { e.preventDefault(); const v = $("#chat-in").value; $("#chat-in").value = ""; ask(v); });
+$("#chat-log").addEventListener("click", (e) => { const q = e.target.closest("[data-q]")?.dataset.q; if (q) ask(q); });
+
 // --------------------------------------------------------------- settings --
 const MODES = [
   ["safe", "Safe", "Everything waits for your tap."],
@@ -399,4 +534,5 @@ $("#rule-btn").onclick = (e) => busy(e.target, async () => {
 
 // mode and version in the sidebar are correct on every page, not only Home
 api("/api/status").then((st) => { $("#mode-pill").textContent = st.mode; $("#ver").textContent = "v" + st.version; }).catch(() => {});
+$("#mcp-cmd").textContent = "claude mcp add drivemind -- python -m drivemind mcp";
 show(location.hash.slice(1) || "home");

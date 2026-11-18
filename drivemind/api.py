@@ -9,6 +9,7 @@ checked to block DNS-rebinding attacks.
 from __future__ import annotations
 
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -165,11 +166,64 @@ def _do_scan(root: str) -> Dict:
         "largest_files": [{"path": str(f.path), "size": f.size, "mtime": f.mtime} for f in res.largest_files[:25]],
         "by_type": [{"ext": e, "size": s} for e, s in list(res.ext_sizes.items())[:15]],
         "growth": growth(str(res.root)),
+        "categories": [{"name": k, "count": v[0], "size": v[1]} for k, v in res.categories.items()],
+        "ages": [{"name": k, "count": v[0], "size": v[1]} for k, v in res.age_buckets.items()],
+        "sizes": [{"name": k, "count": v[0], "size": v[1]} for k, v in res.size_buckets.items()],
+        "stale_large": [{"path": str(f.path), "size": f.size, "mtime": f.mtime, "atime": f.atime} for f in res.stale_large[:20]],
+        "tree": _tree(res),
         "finished": time.time(),
     }
     _last_scan[str(res.root)] = out
     _last_scan["__latest__"] = out
     return out
+
+
+def _tree(res, top: int = 14, sub: int = 10) -> List[Dict]:
+    """Two levels of folders for the treemap."""
+    kids = res.top_children(top)
+    by_parent: Dict[str, List] = {}
+    for path, size in res.dir_sizes.items():
+        parent = str(Path(path).parent)
+        by_parent.setdefault(parent, []).append((path, size))
+    out = []
+    for path, size in kids:
+        grand = sorted(by_parent.get(path, []), key=lambda x: x[1], reverse=True)[:sub]
+        out.append({"name": Path(path).name, "path": path, "size": size,
+                    "children": [{"name": Path(g).name, "path": g, "size": gs} for g, gs in grand]})
+    return out
+
+
+@app.get("/api/history")
+def history(drive: Optional[str] = None, days: int = 90):
+    d = drive or system_drive()
+    rows = db.connect().execute("SELECT ts, used, free, total FROM snapshots WHERE drive=? AND ts>=? ORDER BY ts",
+                                (d, time.time() - days * 86400)).fetchall()
+    return {"drive": d, "points": [dict(r) for r in rows]}
+
+
+@app.get("/api/apps")
+def apps():
+    from .winapps import installed_apps
+    return installed_apps()
+
+
+@app.get("/api/startup")
+def startup():
+    from .winapps import startup_apps
+    return startup_apps()
+
+
+class StartupReq(BaseModel):
+    name: str
+    enabled: bool
+
+
+@app.put("/api/startup")
+def set_startup_app(req: StartupReq):
+    from .winapps import set_startup
+    if sys.platform != "win32" or not set_startup(req.name, req.enabled):
+        raise HTTPException(400, "Only your own (per-user) startup apps can be switched on Windows")
+    return {"ok": True}
 
 
 @app.post("/api/scan")
@@ -464,6 +518,17 @@ def ssd_health():
     return disk_health()
 
 
+class ChatReq(BaseModel):
+    question: str
+    history: List[Dict] = []
+
+
+@app.post("/api/chat")
+def chat(req: ChatReq):
+    from .chat import answer
+    return answer(req.question, req.history)
+
+
 @app.get("/api/devdata")
 def dev_data():
     from .devdata import report
@@ -553,6 +618,7 @@ for path, fn, methods in [
     ("/settings/option", set_option, ["PUT"]), ("/settings/cache", set_cache_choice, ["PUT"]),
     ("/settings/temp", set_temp_choice, ["PUT"]), ("/where", where, ["GET"]),
     ("/search", search_files, ["GET"]), ("/ssd", ssd_health, ["GET"]), ("/plans/archive", new_archive, ["POST"]),
+    ("/history", history, ["GET"]), ("/scan/latest", latest_scan, ["GET"]), ("/chat", chat, ["POST"]),
 ]:
     m.add_api_route(path, fn, methods=methods)
 app.mount("/m", m)

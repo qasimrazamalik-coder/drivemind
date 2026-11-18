@@ -267,6 +267,38 @@ def cmd_serve(args) -> None:
     uvicorn.run(app, host="0.0.0.0" if lan else "127.0.0.1", port=args.port, log_level="warning")
 
 
+def cmd_chat(args) -> None:
+    from .chat import answer
+    if args.question:
+        r = answer(" ".join(args.question))
+        print(r["answer"])
+        for i, src in enumerate(r["sources"], 1):
+            print(c(f"  [{i}] {src['path']}", "2"))
+        return
+    history = []
+    print("DriveMind assistant — ask about space, cleaning, finding files, duplicates, disk health. Ctrl+C to quit.")
+    try:
+        while True:
+            q = input(c("\nyou> ", "36")).strip()
+            if not q:
+                continue
+            r = answer(q, history)
+            print(r["answer"])
+            for i, src in enumerate(r["sources"], 1):
+                print(c(f"  [{i}] {src['path']}", "2"))
+            history += [{"role": "user", "content": q}, {"role": "assistant", "content": r["answer"]}]
+    except (KeyboardInterrupt, EOFError):
+        print()
+
+
+def cmd_mcp(args) -> None:
+    try:
+        from .mcp_server import main as run
+    except ImportError:
+        sys.exit('The MCP server needs:  pip install "drivemind[mcp]"')
+    run()
+
+
 def cmd_tray(args) -> None:
     try:
         import pystray  # noqa: F401
@@ -482,6 +514,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("shell", help="Windows: Explorer right-click menu and autostart")
     p.add_argument("action", choices=["install", "uninstall", "autostart-on", "autostart-off"])
     p.set_defaults(fn=cmd_shell)
+    p = sub.add_parser("chat", help="ask the DriveMind assistant (RAG over your files)")
+    p.add_argument("question", nargs="*")
+    p.set_defaults(fn=cmd_chat)
+    sub.add_parser("mcp", help="run as an MCP server for Claude Code / Codex / Cursor (stdio)").set_defaults(fn=cmd_mcp)
     p = sub.add_parser("tray", help="run in the system tray (dashboard, phone sync, guardian)")
     p.add_argument("--port", type=int, default=7878)
     p.set_defaults(fn=cmd_tray)

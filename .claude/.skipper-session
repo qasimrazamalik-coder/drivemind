@@ -8,3 +8,11 @@
 1795029888|drivemind/cli.py
 1795029957|mobile/src/lib/background.ts
 1795030004|drivemind/tray.py
+1795030462|drivemind/winapps.py
+1795030471|tests/test_insights.py
+1795030548|drivemind/chat.py
+1795030568|drivemind/mcp_server.py
+1795030661|drivemind/web/charts.js
+1795030710|drivemind/web/index.html
+1795030787|drivemind/web/styles.css
+1795031153|tests/test_chat_mcp.py

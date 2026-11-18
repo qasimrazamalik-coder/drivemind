@@ -3,46 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>DriveMind</title>
 <link rel="stylesheet" href="/static/styles.css">
+<script>try{const t=localStorage.getItem("dm-theme");if(t&&t!=="system")document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body>
 <div class="app">
   <aside class="side">
     <div class="brand"><span class="logo" aria-hidden="true"></span>DriveMind</div>
-    <nav id="nav">
-      <a data-view="home" class="on">Home</a>
-      <a data-view="search">Search</a>
-      <a data-view="organize">Organize</a>
-      <a data-view="caches">Cache Cleaner</a>
-      <a data-view="temp">Temporary files</a>
-      <a data-view="more">Projects &amp; dev</a>
-      <a data-view="folders">User folders</a>
-      <a data-view="history">History</a>
-      <a data-view="settings">Settings</a>
+    <nav id="nav" aria-label="Main">
+      <a data-view="home" class="on" href="#home">Overview</a>
+      <a data-view="search" href="#search">Search</a>
+      <a data-view="organize" href="#organize">Organize</a>
+      <a data-view="caches" href="#caches">Cache Cleaner</a>
+      <a data-view="temp" href="#temp">Temporary files</a>
+      <a data-view="more" href="#more">Projects &amp; dev</a>
+      <a data-view="apps" href="#apps">Apps &amp; startup</a>
+      <a data-view="folders" href="#folders">User folders</a>
+      <a data-view="history" href="#history">History</a>
+      <a data-view="settings" href="#settings">Settings</a>
     </nav>
-    <div class="side-foot"><span id="mode-pill" class="pill">balanced</span><span id="ver"></span></div>
+    <div class="side-foot">
+      <button class="theme-btn" id="theme-btn" aria-label="Switch theme" title="Theme"><span id="theme-ico" aria-hidden="true"></span><span id="theme-name">System</span></button>
+      <span><span id="mode-pill" class="pill">–</span> <span id="ver" class="muted"></span></span>
+    </div>
   </aside>
 
   <main id="main">
-    <!-- HOME -->
+    <!-- OVERVIEW -->
     <section data-page="home" class="page on">
-      <header class="head"><h1>Drive health</h1><p class="sub" id="home-sub">Checking your drives…</p></header>
-      <div class="grid2">
-        <div class="card hero" id="hero"></div>
-        <div class="card">
-          <h2>Top fixes</h2>
-          <div id="tips" class="tips"><p class="muted">Looking for the biggest wins…</p></div>
-        </div>
+      <header class="head row-head"><div><h1>Overview</h1><p class="sub" id="home-sub">Checking your drives…</p></div>
+        <span class="live" id="live"><i></i>Live</span></header>
+
+      <div class="kpis">
+        <div class="kpi card"><span class="kpi-label">Free space</span><b class="kpi-val" id="k-free">–</b><span class="kpi-sub" id="k-free-sub"></span></div>
+        <div class="kpi card"><span class="kpi-label">Health</span><b class="kpi-val" id="k-health">–</b><span class="kpi-sub" id="k-health-sub"></span></div>
+        <div class="kpi card"><span class="kpi-label">Full in</span><b class="kpi-val" id="k-full">–</b><span class="kpi-sub" id="k-full-sub"></span></div>
+        <div class="kpi card"><span class="kpi-label">Waiting for you</span><b class="kpi-val" id="k-wait">–</b><span class="kpi-sub" id="k-wait-sub">changes to review</span></div>
       </div>
+
+      <div class="grid2 wide-left">
+        <div class="card"><div class="row-head"><h2>Space over time</h2><div class="seg small" id="range"><button data-days="7">7d</button><button data-days="30" class="on">30d</button><button data-days="90">90d</button></div></div>
+          <div id="area" class="chart"></div></div>
+        <div class="card hero" id="hero"></div>
+      </div>
+
       <div class="card">
-        <div class="row-head"><h2>What is eating space</h2>
-          <div class="inline"><input id="scan-root" class="input" spellcheck="false"><button class="btn" id="scan-btn">Scan</button></div></div>
-        <div id="scan-out"><p class="muted">Scan a drive or folder to see its biggest folders and files. Cloud-only OneDrive files are never downloaded.</p></div>
+        <div class="row-head"><h2>What is filling the drive</h2>
+          <div class="inline"><input id="scan-root" class="input" spellcheck="false" aria-label="Folder or drive to scan"><button class="btn" id="scan-btn">Scan</button></div></div>
+        <p class="muted" id="scan-meta">Scan a drive or folder. Cloud-only OneDrive files are never downloaded.</p>
+        <div id="treemap" class="chart"></div>
+        <p class="muted small-note">Click a block to ask “What is this folder?”.</p>
+      </div>
+
+      <div class="grid3">
+        <div class="card"><h2>By file type</h2><div id="donut" class="chart"></div></div>
+        <div class="card"><div class="row-head"><h2>By age</h2><div class="seg small" id="age-by"><button data-by="size" class="on">Size</button><button data-by="count">Files</button></div></div><div id="ages" class="chart"></div></div>
+        <div class="card"><div class="row-head"><h2>By file size</h2><div class="seg small" id="size-by"><button data-by="size" class="on">Size</button><button data-by="count">Files</button></div></div><div id="sizes" class="chart"></div></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card"><h2>Top fixes</h2><div id="tips" class="tips"><p class="muted">Looking for the biggest wins…</p></div></div>
+        <div class="card"><h2>Big files untouched for 6+ months</h2><div id="stale"><p class="muted">Appears after a scan.</p></div></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card"><h2>Disk health</h2><div id="ssd"><p class="muted">Reading the drives' own health counters…</p></div></div>
+        <div class="card"><div class="row-head"><h2>Alerts</h2><button class="btn ghost sm" id="read-btn">Mark read</button></div><div id="notices"></div></div>
       </div>
       <div class="card"><h2>All drives</h2><div id="drives" class="drives"></div></div>
-      <div class="card"><h2>Disk health</h2><div id="ssd"><p class="muted">Reading the drives' own health counters…</p></div></div>
-      <div class="card"><div class="row-head"><h2>Alerts</h2><button class="btn ghost sm" id="read-btn">Mark read</button></div><div id="notices"></div></div>
     </section>
 
     <!-- SEARCH -->
@@ -74,6 +104,7 @@
     <section data-page="caches" class="page">
       <header class="head"><h1>Cache Cleaner</h1><p class="sub">Yes clears it automatically, Ask shows the size and waits, No never touches it.</p></header>
       <div class="card"><div class="row-head"><h2 id="cache-total">Caches</h2><button class="btn" id="cache-btn">Review a clean</button></div>
+        <div id="cache-chart" class="chart"></div>
         <table class="tbl" id="cache-tbl"></table></div>
       <div id="cache-plan"></div>
     </section>
@@ -86,14 +117,14 @@
       <div id="temp-plan"></div>
     </section>
 
-    <!-- MORE -->
+    <!-- PROJECTS & DEV -->
     <section data-page="more" class="page">
       <header class="head"><h1>Projects &amp; dev</h1><p class="sub">Duplicates (checked by content), old project dependencies, idle projects to archive, and developer data that fills C:.</p></header>
       <div class="grid2">
         <div class="card"><h2>Duplicate files</h2><p class="muted">Keeps the copy in the most organized place; the rest go to quarantine.</p>
           <input id="dupe-roots" class="input" placeholder="Folders, separated by ;  (empty = your user folders)" spellcheck="false">
           <div class="form-actions"><button class="btn" id="dupe-btn">Find duplicates</button></div></div>
-        <div class="card"><h2>Old project dependencies</h2><p class="muted">node_modules, .venv, build, .next, .gradle… each restorable with one command.</p>
+        <div class="card"><h2>Old project dependencies</h2><p class="muted">node_modules, .venv, .next, .gradle… each restorable with one command. Build outputs go to quarantine.</p>
           <input id="dev-roots" class="input" placeholder="Project folders, separated by ;" spellcheck="false">
           <div class="form-actions"><button class="btn" id="dev-btn">Find dev junk</button></div></div>
       </div>
@@ -104,15 +135,25 @@
       <div class="card"><div class="row-head"><h2>Developer data on C:</h2><button class="btn ghost sm" id="devdata-btn">Check</button></div>
         <div id="devdata"><p class="muted">WSL, Docker, Android emulators and SDK, Gradle, Ollama models and Steam games — sizes and the safe way to move each.</p></div></div>
       <div class="card"><h2>What is this folder?</h2>
-        <div class="inline"><input id="explain-path" class="input" placeholder="Paste any folder path" spellcheck="false"><button class="btn ghost" id="explain-btn">Explain</button></div>
+        <div class="inline"><input id="explain-path" class="input" placeholder="Paste any folder path" spellcheck="false" aria-label="Folder path"><button class="btn ghost" id="explain-btn">Explain</button></div>
         <div id="explain-out"></div></div>
+    </section>
+
+    <!-- APPS -->
+    <section data-page="apps" class="page">
+      <header class="head"><h1>Apps &amp; startup</h1><p class="sub">Installed apps by size and age, and which apps start with Windows. Switching a startup app off works exactly like Task Manager and can be turned back on any time.</p></header>
+      <div class="card"><div class="row-head"><h2>Starts with Windows</h2><span class="muted" id="startup-count"></span></div><div id="startup"></div></div>
+      <div class="card"><div class="row-head"><h2 id="apps-title">Installed apps</h2>
+        <div class="inline"><input id="apps-filter" class="input" placeholder="Filter apps" aria-label="Filter apps"><div class="seg small" id="apps-sort"><button data-sort="size" class="on">Size</button><button data-sort="installed">Oldest</button><button data-sort="name">A–Z</button></div></div></div>
+        <div id="apps-chart" class="chart"></div>
+        <div id="apps"></div></div>
     </section>
 
     <!-- FOLDERS -->
     <section data-page="folders" class="page">
       <header class="head"><h1>User folders</h1><p class="sub">Move Desktop, Downloads, Documents, Pictures and Videos to another drive. Windows and your apps follow automatically.</p></header>
       <div class="card"><table class="tbl" id="folder-tbl"></table>
-        <div class="inline top"><input id="folder-target" class="input" placeholder="New location, e.g. D:\" spellcheck="false"><button class="btn" id="folder-btn">Plan the move</button></div></div>
+        <div class="inline top"><input id="folder-target" class="input" placeholder="New location, e.g. D:\" spellcheck="false" aria-label="New location"><button class="btn" id="folder-btn">Plan the move</button></div></div>
       <div id="folder-plan"></div>
     </section>
 
@@ -120,7 +161,7 @@
     <section data-page="history" class="page">
       <header class="head"><h1>History</h1><p class="sub">Every change is journaled. Undo a whole plan, or find any file DriveMind moved.</p></header>
       <div class="card"><h2>Where did my file go?</h2>
-        <div class="inline"><input id="where-q" class="input" placeholder="File name, e.g. report.pdf" spellcheck="false"><button class="btn ghost" id="where-btn">Search</button></div>
+        <div class="inline"><input id="where-q" class="input" placeholder="File name, e.g. report.pdf" spellcheck="false" aria-label="File name"><button class="btn ghost" id="where-btn">Search</button></div>
         <div id="where-out"></div></div>
       <div class="card"><h2>Plans</h2><div id="plans"></div></div>
       <div id="hist-plan"></div>
@@ -133,17 +174,33 @@
       <div class="card"><div class="row-head"><h2>Phone</h2><button class="btn" id="pair-btn">Pair a phone</button></div>
         <p class="muted">Install the DriveMind Android app, then scan the code. Your phone and this PC must be on the same Wi-Fi. Only paired phones can connect.</p>
         <div id="pair-out"></div><div id="devices"></div></div>
+      <div class="card"><h2>AI agents (MCP)</h2>
+        <p class="muted">Let Claude Code, Claude Desktop, Codex or Cursor use DriveMind. Agents can read and propose plans; only you approve changes.</p>
+        <pre class="code" id="mcp-cmd">claude mcp add drivemind -- python -m drivemind mcp</pre></div>
       <div class="card"><h2>Switches</h2><table class="tbl" id="opt-tbl"></table></div>
       <div class="grid2">
         <div class="card form" id="prefs"></div>
         <div class="card"><h2>Your rules</h2><p class="muted">Write a rule as a sentence, e.g. <em>anything with invoice from Downloads goes to Work/Invoices</em>.</p>
-          <div class="inline"><input id="rule-text" class="input" spellcheck="false"><button class="btn ghost" id="rule-btn">Add</button></div>
+          <div class="inline"><input id="rule-text" class="input" spellcheck="false" aria-label="New rule"><button class="btn ghost" id="rule-btn">Add</button></div>
           <div id="rules"></div></div>
       </div>
     </section>
   </main>
 </div>
+
+<!-- ASSISTANT -->
+<button class="chat-fab" id="chat-fab" aria-label="Open DriveMind assistant" aria-expanded="false"><span aria-hidden="true">✦</span> Ask DriveMind</button>
+<aside class="chat" id="chat" aria-label="DriveMind assistant" aria-hidden="true">
+  <header class="chat-head"><div><b>DriveMind assistant</b><span class="muted" id="chat-mode">Answers from your drive and files</span></div>
+    <button class="icon-btn" id="chat-close" aria-label="Close assistant">✕</button></header>
+  <div class="chat-log" id="chat-log" aria-live="polite">
+    <div class="msg bot"><p>Hi! Ask me about your drive or your files. For example:</p><div class="chips"><button class="chip" data-q="What is eating my drive space?">What is eating my space?</button><button class="chip" data-q="Find my invoice from Dubai">Find my Dubai invoice</button><button class="chip" data-q="C drive saaf karo">C drive saaf karo</button><button class="chip" data-q="Is my SSD healthy?">Is my SSD healthy?</button></div></div>
+  </div>
+  <form class="chat-form" id="chat-form"><input id="chat-in" class="input" placeholder="Ask anything… (English or Roman Urdu)" autocomplete="off" aria-label="Message"><button class="btn" aria-label="Send">Send</button></form>
+</aside>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/static/charts.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

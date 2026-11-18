@@ -136,12 +136,21 @@ def parse_query(q: str) -> Dict:
     return {"words": words, "exts": exts, "month": month, "year": year}
 
 
-def search(q: str, limit: int = 30) -> List[Dict]:
+QUESTION_WORDS = {"how", "much", "many", "what", "when", "who", "whom", "why", "which", "is", "are", "was", "were",
+                  "does", "do", "did", "can", "could", "should", "say", "says", "said", "about", "there", "this",
+                  "that", "it", "its", "to", "on", "at", "by", "be", "and", "or", "me", "tell", "kya", "kitna", "kitne",
+                  "kab", "kaun", "hai", "hain", "tha", "ka", "ki", "ke", "mein", "per"}
+
+
+def search(q: str, limit: int = 30, any_word: bool = False) -> List[Dict]:
+    """any_word=False: every word must match (search box). True: best partial matches (assistant questions)."""
     conn = _conn()
     p = parse_query(q)
+    if any_word:
+        p["words"] = [w for w in p["words"] if w not in QUESTION_WORDS and len(w) > 1]
     rows = []
     if p["words"]:
-        match = " AND ".join(f'"{w}"*' for w in p["words"])
+        match = (" OR " if any_word else " AND ").join(f'"{w}"*' for w in p["words"])
         sql = ("SELECT files_fts.path AS path, bm25(files_fts, 0.0, 8.0, 1.0) AS score, "
                "snippet(files_fts, 2, '[', ']', ' … ', 12) AS snip, m.mtime, m.size, m.ext "
                "FROM files_fts JOIN files_meta m ON m.rowid_fts = files_fts.rowid "

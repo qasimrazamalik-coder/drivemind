@@ -19,6 +19,7 @@ DriveMind organizes your files, clears caches and temporary junk, finds duplicat
 
 | Area | What you get |
 | --- | --- |
+| **Dashboard** | Live Overview in light or dark (follows Windows, or pick one): free space, health, "full in" forecast and waiting changes, refreshed every 30 seconds. Charts: space over 7, 30 or 90 days, a treemap of what fills the drive (click a block for "what is this folder?"), file types, file ages and file sizes, plus big files untouched for 6 months. No build step, no external requests, works at phone width. |
 | **Disk Guardian** | Health score per drive, a forecast of when the drive will be full, a low-space alert, and a scan of what is eating space. The scan never downloads OneDrive online-only files. |
 | **Organizer** | Six layouts (Developer, Student, Freelancer, By type, Minimal, Johnny Decimal). Project folders move as one unit. Old versions are stacked into `_versions`. Camera and WhatsApp photos get readable names. Exact copies are detected, and same-name files get a `(2)` suffix. |
 | **Decision chain** | 1. Your rules. 2. Habits learned from your approvals and rejections (naive Bayes). 3. File-type classifier. 4. Local AI, used only for files the first three are unsure about. |
@@ -33,6 +34,9 @@ DriveMind organizes your files, clears caches and temporary junk, finds duplicat
 | **Developer data** | WSL distros, Docker's disk, Android SDK and emulators, Gradle, Ollama models and Steam games: their size on C:, the supported way to move each, and a diskpart script that shrinks WSL and Docker virtual disks. |
 | **Tray** | A ring next to the clock, coloured by C: health, with Open dashboard, Tidy now, Pause and Quit. It starts with Windows. |
 | **History** | Undo any plan, and "Where did my file go?" search across everything DriveMind has moved. |
+| **Assistant** | Ask in English or Roman Urdu: *what is eating my space?*, *find my Dubai invoice*, *C drive saaf karo*. Common questions go straight to DriveMind's own tools; anything else is answered from your indexed documents (RAG), with the files cited. If a local model is running (Ollama), it writes the answer from those facts only; without one, DriveMind answers from the same facts. Nothing leaves the PC. |
+| **MCP server** | `drivemind mcp` lets Claude, Cursor or any MCP client check drive health, search files, explain folders and propose cleanups. Plans it builds still wait for your approval: the MCP tools cannot approve. |
+| **Apps & startup** | Installed apps by size and install date, and the apps that start with Windows, each with an on/off switch that works exactly like Task Manager (current user only, reversible). |
 | **Android app** | Pair by QR code over Wi-Fi. See drive health and alerts, approve, reject or undo plans, "Tidy now", Yes / Ask / No switches and mode. Everything syncs with the PC instantly. See `mobile/README.md`. |
 | **What is this folder?** | Built-in knowledge of about 30 common folders (WinSxS, node_modules, Installer…), with the local AI as a fallback. |
 
@@ -83,7 +87,24 @@ drivemind tag-temp file.zip --days 7
 drivemind shell install|uninstall|autostart-on|autostart-off
 drivemind serve                         dashboard + background guardian (+ phone sync once paired)
 drivemind pair                          pair a phone without the dashboard (prints a code)
+drivemind chat "what is eating my space?"   ask the assistant
+drivemind mcp                           MCP server over stdio (for Claude, Cursor…)
 ```
+
+## Use DriveMind from Claude (MCP)
+
+```bash
+pip install "drivemind[mcp]"
+claude mcp add drivemind -- python -m drivemind mcp
+```
+
+For Claude Desktop, add to `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "drivemind": { "command": "python", "args": ["-m", "drivemind", "mcp"] } } }
+```
+
+Tools: `drive_status`, `scan_folder`, `search_files`, `where_is_file`, `explain_folder`, `cache_report`, `plan_cleanup`, `plan_organize`, `get_plan`, `apply_plan`, `undo_plan`, `ask_drivemind`. `apply_plan` runs only the steps you already approved.
 
 ## Architecture
 
@@ -117,7 +138,10 @@ drivemind/
   ssd.py         disk health from reliability counters
   devdata.py     WSL / Docker / Android / Gradle / Ollama / Steam report
   tray.py        system-tray app
-  web/           dashboard (no build step, no external requests)
+  winapps.py     installed apps and startup switches (registry)
+  chat.py        assistant: intent routing + local RAG + optional Ollama
+  mcp_server.py  MCP tools over stdio
+  web/           dashboard + charts.js (SVG charts, no build step, no external requests)
 mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 ```
 
@@ -125,7 +149,7 @@ mobile/          Android app (Expo SDK 58, React Native, TypeScript)
 
 ```bash
 pip install -e ".[dev,all]"
-pytest -q          # 41 tests, run on Windows and Ubuntu in CI
+pytest -q          # 50 tests, run on Windows and Ubuntu in CI
 cd mobile && npm install && npx tsc --noEmit   # typecheck the Android app
 ```
 
