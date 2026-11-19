@@ -14,10 +14,10 @@ H = {"X-DriveMind": "1"}
 MB = 1024 * 1024
 
 
-def journal(op, size, dst=None, ts=None, undone=0, plan="p1"):
+def journal(op, size, dst=None, ts=None, undone=0, plan="p1", reason=""):
     conn = db.connect()
     conn.execute("INSERT INTO journal(ts, plan_id, op, src, dst, size, reason, undone) VALUES (?,?,?,?,?,?,?,?)",
-                 (ts or time.time(), plan, op, "/x/src", dst, size, "", undone))
+                 (ts or time.time(), plan, op, "/x/src", dst, size, reason, undone))
     conn.commit()
 
 
@@ -76,3 +76,12 @@ def test_removing_a_large_file_always_asks_even_on_autopilot(isolated):
 def test_large_plan_skips_paths_that_are_not_files(isolated):
     p = plan_large([str(isolated / "Videos"), str(isolated / "nope.bin")])
     assert p.actions == [] and len(p.notes) == 2
+
+
+def test_archived_project_is_not_counted_as_freed():
+    from drivemind.insights import ARCHIVE_ORIGINAL
+    journal("archive", 2000 * MB, dst="/q/app.zip", plan="arc")
+    journal("quarantine", 2000 * MB, plan="arc", reason=ARCHIVE_ORIGINAL)   # the original, kept 30 days
+    journal("delete_cache", 100 * MB, plan="c")
+    r = weekly(7, drive="/")
+    assert r["freed_bytes"] == 100 * MB and r["cleaned_files"] == 1, "the zip still takes space"

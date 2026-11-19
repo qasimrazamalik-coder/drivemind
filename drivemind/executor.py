@@ -97,7 +97,8 @@ def _apply_one(plan: Plan, a: Action, settings: Settings) -> None:
         a.dst = str(dst)
         _journal(plan.id, "archive", a.src, str(dst), a.size, a.reason)
         qdst = _move(src, quarantine_dir() / plan.id / _flatten(src))
-        _journal(plan.id, "quarantine", a.src, str(qdst), a.size, "original kept after archiving")
+        from .insights import ARCHIVE_ORIGINAL  # the weekly report relies on this exact reason
+        _journal(plan.id, "quarantine", a.src, str(qdst), a.size, ARCHIVE_ORIGINAL)
         return
     if a.op == Op.MOVE:
         if not src.exists():
@@ -234,6 +235,7 @@ def undo_plan(plan: Plan) -> Dict:
     conn = db.connect()
     rows = conn.execute("SELECT * FROM journal WHERE plan_id=? AND undone=0 ORDER BY id DESC", (plan.id,)).fetchall()
     restored = skipped = 0
+    renamed: List[Dict] = []  # restored, but something new sits at the old spot, so the name changed
     for r in rows:
         if r["op"] == "archive":
             try:
@@ -252,9 +254,10 @@ def undo_plan(plan: Plan) -> Dict:
             back = _move(Path(r["dst"]), Path(r["src"]))
             conn.execute("UPDATE journal SET undone=1 WHERE id=?", (r["id"],))
             restored += 1
+            if str(back) != str(Path(r["src"])):
+                renamed.append({"was": r["src"], "now": str(back)})
             if r["op"] == "move" and plan.kind == "organize":
                 learner.record(Path(r["src"]).name, "", str(Path(r["dst"]).parent), False)
-            del back
         else:
             skipped += 1  # cache deletes and permanent deletes cannot come back
     conn.commit()
@@ -264,7 +267,7 @@ def undo_plan(plan: Plan) -> Dict:
     plan.status = "undone"
     plan.save()
     _remove_empty_dirs(plan)
-    return {"restored": restored, "not_reversible": skipped}
+    return {"restored": restored, "not_reversible": skipped, "renamed": renamed}
 
 
 def _remove_empty_dirs(plan: Plan) -> None:

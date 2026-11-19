@@ -6,7 +6,6 @@ is YES (from settings) or that the user approved are executed.
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from enum import Enum

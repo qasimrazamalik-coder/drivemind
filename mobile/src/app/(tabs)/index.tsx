@@ -7,6 +7,20 @@ import { ago, human } from "../../lib/api";
 import { useConn, useLoad } from "../../lib/conn";
 import { C, F } from "../../lib/theme";
 import { useToast } from "../../lib/toast";
+import type { ShelfSeg } from "../../components/ui";
+
+/** Same rule as the PC: a file type gets a block only if it is at least 0.5% of the drive. */
+function shelfSegments(d: { drive: string; used: number; free: number },
+  scan: { root?: string; categories?: { name: string; size: number }[] } | null): ShelfSeg[] {
+  const cap = d.used + d.free;
+  const same = !!scan?.root && scan.root.toLowerCase().startsWith(d.drive.toLowerCase());
+  const types = same ? (scan?.categories || []).filter((c) => c.size >= cap * 0.005).slice(0, 6) : [];
+  const segs: ShelfSeg[] = types.map((c, i) => ({ name: c.name, size: c.size, color: C.series[i % C.series.length] }));
+  const typed = types.reduce((a, c) => a + c.size, 0);
+  if (d.used - typed > 0) segs.push({ name: types.length ? "Other used" : "Used", size: d.used - typed, color: types.length ? C.used : C.manila });
+  segs.push({ name: "Free", size: d.free, color: C.panel2 });
+  return segs;
+}
 
 export default function Home() {
   const { api, conn, online } = useConn();
@@ -16,6 +30,7 @@ export default function Home() {
   const notices = useLoad(api ? api.notices : null, [api], { live: ["notices"], cacheKey: "notices" });
   const disks = useLoad(api ? api.ssd : null, [api], { cacheKey: "ssd" });
   const week = useLoad(api ? api.weekly : null, [api], { live: ["plans"], cacheKey: "weekly" });
+  const scanned = useLoad(api ? api.scanLatest : null, [api], { live: ["scan"], cacheKey: "scan" });
   const [tidying, setTidying] = useState(false);
   const d = hello.data?.drive;
 
@@ -25,6 +40,7 @@ export default function Home() {
     notices.reload();
     disks.reload();
     week.reload();
+    scanned.reload();
   };
 
   async function tidy() {
@@ -64,7 +80,7 @@ export default function Home() {
               <Text style={s.muted}>free of {human(d.used + d.free)}</Text>
             </View>
           </View>
-          <Shelf usedFraction={1 - d.free_percent / 100} status={d.status} />
+          <Shelf segments={shelfSegments(d, scanned.data)} capacity={d.used + d.free} status={d.status} />
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
             <View><Text style={s.muted}>Health</Text><Text style={[s.h2, { fontFamily: F.display }]}>{d.score}/100</Text></View>
             <View style={{ alignItems: "flex-end" }}><Text style={s.muted}>Full in</Text>

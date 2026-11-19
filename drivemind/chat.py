@@ -65,8 +65,8 @@ def gather(q: str, intent: str, settings: Settings) -> Dict:
         facts.append(f"Drive {d['drive']}: {human(d['free'])} free of {human(d['used'] + d['free'])} "
                      f"({d['free_percent']}% free, health {d['score']}/100, status {d['status']}).")
     if intent == "space":
-        from .api import _last_scan
-        sc = _last_scan.get("__latest__")
+        from .api import last_scan
+        sc = last_scan()
         if sc:
             facts.append("Biggest folders in the last scan of " + sc["root"] + ": " +
                          "; ".join(f"{Path(c['path']).name} {human(c['size'])}" for c in sc["children"][:6]) + ".")

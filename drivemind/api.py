@@ -8,6 +8,7 @@ checked to block DNS-rebinding attacks.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -32,7 +33,7 @@ from .pathmanager import folder_report, plan_relocate
 from .paths import user_folders
 from .plan import Plan, Status
 from .planner import plan_organize
-from .rules import Rule, load_rules, parse_rule, save_rules
+from .rules import load_rules, parse_rule, save_rules
 from .scanner import scan
 
 WEB = Path(__file__).parent / "web"
@@ -192,7 +193,26 @@ def _do_scan(root: str) -> Dict:
     }
     _last_scan[str(res.root)] = out
     _last_scan["__latest__"] = out
+    try:  # kept on disk so the Overview, the phone and the assistant still know it after a restart
+        from .config import data_dir
+        tmp = data_dir() / "last_scan.json.tmp"
+        tmp.write_text(json.dumps(out), encoding="utf-8")
+        os.replace(tmp, data_dir() / "last_scan.json")
+    except OSError:
+        pass
     return out
+
+
+def last_scan(root: Optional[str] = None) -> Dict:
+    """The newest scan summary: from memory, or from disk after a restart."""
+    if "__latest__" not in _last_scan:
+        try:
+            from .config import data_dir
+            saved = json.loads((data_dir() / "last_scan.json").read_text(encoding="utf-8"))
+            _last_scan["__latest__"] = _last_scan[saved["root"]] = saved
+        except (OSError, ValueError, KeyError):
+            return {}
+    return _last_scan.get(root or "__latest__") or {}
 
 
 def _tree(res, top: int = 14, sub: int = 10) -> List[Dict]:
@@ -252,7 +272,7 @@ def start_scan(req: ScanReq):
 
 @app.get("/api/scan/latest")
 def latest_scan(root: Optional[str] = None):
-    return _last_scan.get(root or "__latest__") or {}
+    return last_scan(root)
 
 
 @app.get("/api/jobs/{job_id}")

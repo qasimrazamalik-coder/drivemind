@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 UNINSTALL_KEYS = [
     ("HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),

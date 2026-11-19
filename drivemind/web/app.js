@@ -135,7 +135,9 @@ function renderPlan(target, plan) {
   $$("[data-do]", el).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
     if (b.dataset.do === "undo") {
       const r = await api(`/api/plans/${plan.id}/undo`, "POST");
-      toast(`Restored ${r.result.restored} items`); renderPlan(el, r.plan); return;
+      const rn = r.result.renamed || [];
+      toast(`Restored ${r.result.restored} items` + (rn.length ? `. ${rn.length} came back with a new name, because a newer file is in its old place: ${rn.slice(0, 2).map((x) => x.now.split(/[\\/]/).pop()).join(", ")}${rn.length > 2 ? "…" : ""}` : ""));
+      renderPlan(el, r.plan); return;
     }
     const ids = picked();
     if (!ids.length) return toast("Select at least one change");

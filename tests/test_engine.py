@@ -224,3 +224,19 @@ def test_health_and_forecast():
     conn.commit()
     days = forecast_days_to_full("X:")
     assert 40 <= days <= 42                                     # 41,000 free / 1,000 per day
+
+
+def test_undo_reports_files_that_come_back_under_a_new_name(isolated, tmp_path):
+    desk = isolated / "Desktop"
+    make(desk / "Invoice_Acme_March.pdf", b"old invoice")
+    s = Settings()
+    p = plan_organize(desk, tmp_path / "Organized", s, use_ai=False)
+    p.set_status([], Status.APPROVED)
+    p.save()
+    apply_plan(p, s)
+    make(desk / "Invoice_Acme_March.pdf", b"a newer file the user made since")
+    u = undo_plan(Plan.load(p.id))
+    assert u["restored"] == 1
+    assert (desk / "Invoice_Acme_March.pdf").read_bytes() == b"a newer file the user made since", "never overwrite"
+    assert len(u["renamed"]) == 1 and Path(u["renamed"][0]["now"]).read_bytes() == b"old invoice"
+    assert Path(u["renamed"][0]["was"]) == desk / "Invoice_Acme_March.pdf"

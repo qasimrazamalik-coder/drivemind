@@ -1,5 +1,3 @@
-import time
-
 from conftest import make
 
 from drivemind.scanner import scan
@@ -46,3 +44,20 @@ def test_startup_toggle_like_task_manager():
     assert set_startup("Discord", True, reg)
     assert {i["name"]: i for i in startup_apps(reg, False)}["Discord"]["enabled"]
     assert not set_startup("SecurityHealth", False, reg)
+
+
+def test_latest_scan_survives_a_restart(isolated):
+    from fastapi.testclient import TestClient
+    from drivemind import api
+    from conftest import make
+    make(isolated / "Documents" / "a.pdf", b"x" * 5000)
+    c = TestClient(api.app)
+    job = c.post("/api/scan", json={"root": str(isolated)}, headers={"X-DriveMind": "1"}).json()["job"]
+    import time
+    for _ in range(100):
+        if c.get(f"/api/jobs/{job}").json()["status"] == "done":
+            break
+        time.sleep(0.05)
+    api._last_scan.clear()                          # what a restart does to memory
+    again = c.get("/api/scan/latest").json()
+    assert again["root"] == str(isolated) and any(x["name"] == "Documents" for x in again["categories"])

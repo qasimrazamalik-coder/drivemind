@@ -1,6 +1,5 @@
 import json
 import os
-import time
 import zipfile
 from datetime import datetime
 from pathlib import Path

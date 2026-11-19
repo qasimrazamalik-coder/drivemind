@@ -175,7 +175,8 @@ export function client(conn: Conn) {
     decide: (id: string, approve: string[], reject: string[] = []) => call<Plan>(`/plans/${id}/decide`, "POST", { approve, reject }),
     apply: (id: string, ids?: string[]) =>
       call<{ result: { done: number; failed: number; freed_bytes: number }; plan: Plan }>(`/plans/${id}/apply`, "POST", { ids: ids ?? null }),
-    undo: (id: string) => call<{ result: { restored: number }; plan: Plan }>(`/plans/${id}/undo`, "POST"),
+    undo: (id: string) =>
+      call<{ result: { restored: number; renamed?: { was: string; now: string }[] }; plan: Plan }>(`/plans/${id}/undo`, "POST"),
     newClean: () => call<Plan>("/plans/clean", "POST", {}),
     newTemp: () => call<Plan>("/plans/temp", "POST", { roots: [] }),
     tidy: () => call<{ done: number; failed: number; freed_bytes: number; waiting: number }>("/tidy", "POST"),
@@ -192,6 +193,7 @@ export function client(conn: Conn) {
     chat: (question: string, history: { role: string; content: string }[]) =>
       call<ChatAnswer>("/chat", "POST", { question, history }, 120000),
     weekly: () => call<Weekly>("/report/weekly"),
+    scanLatest: () => call<{ root?: string; categories?: { name: string; size: number }[] }>("/scan/latest"),
   };
 }
 export type Client = ReturnType<typeof client>;

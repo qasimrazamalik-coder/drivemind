@@ -24,6 +24,8 @@ const DARK = {
   warnSoft: "rgba(232,169,69,0.16)",
   bad: "#f08a7e",
   good: "#8fcf8a",
+  used: "#59615c",
+  series: ["#e7ba4c", "#62b79c", "#df8a5e", "#8fa2dc", "#b9c86a", "#cf8fbc"],
 };
 
 const LIGHT: typeof DARK = {
@@ -42,6 +44,8 @@ const LIGHT: typeof DARK = {
   warnSoft: "rgba(138,83,0,0.10)",
   bad: "#a8251c",
   good: "#2f6b3a",
+  used: "#9aa197",
+  series: ["#e2b23f", "#2f7f68", "#b7653d", "#5b6fa8", "#8b9a3b", "#9a5a86"],
 };
 
 export const C: typeof DARK = { ...DARK };

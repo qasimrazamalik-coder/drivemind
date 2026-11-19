@@ -11,13 +11,12 @@ installed). Queries understand file types and dates:
 
 from __future__ import annotations
 
-import os
 import re
 import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from . import db
 from .scanner import iter_files

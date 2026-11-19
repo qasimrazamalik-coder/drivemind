@@ -10,7 +10,6 @@ from conftest import make
 from drivemind.archiver import git_state, plan_archive
 from drivemind.config import Decision, Mode, Settings
 from drivemind.executor import apply_plan, undo_plan
-from drivemind.plan import Status
 
 pytestmark = pytest.mark.skipif(subprocess.run(["git", "--version"], capture_output=True).returncode != 0,
                                 reason="git not installed")

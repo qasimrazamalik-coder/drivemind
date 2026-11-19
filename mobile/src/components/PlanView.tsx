@@ -51,7 +51,8 @@ export function PlanView({ plan, api, onChange, notify }: { plan: Plan; api: Cli
     try {
       if (kind === "undo") {
         const r = await api.undo(plan.id);
-        notify(`Restored ${r.result.restored} items`);
+        const rn = r.result.renamed || [];
+        notify(`Restored ${r.result.restored} items${rn.length ? ` · ${rn.length} got a new name (a newer file is in the old place)` : ""}`);
         onChange(r.plan);
       } else if (kind === "reject") {
         onChange(await api.decide(plan.id, [], ids));

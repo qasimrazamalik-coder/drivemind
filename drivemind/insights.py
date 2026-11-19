@@ -22,7 +22,10 @@ from .plan import Op, Plan
 from .planner import build_action
 from .scanner import iter_files
 
-FREEING_OPS = ("quarantine", "delete_cache", "archive")
+FREEING_OPS = ("quarantine", "delete_cache")
+# Archiving a project zips it and quarantines the original. The zip still takes space, so like the
+# plan summary, neither the archive row nor that quarantine row counts as freed.
+ARCHIVE_ORIGINAL = "original kept after archiving"
 SKIP_DIRS = {"node_modules", ".git", "AppData", "$Recycle.Bin", "System Volume Information", "Windows",
              "Program Files", "Program Files (x86)", "ProgramData"}
 LARGE_OPTION = "quarantine_large_files"  # never in a mode preset, so it always asks
@@ -31,8 +34,9 @@ LARGE_OPTION = "quarantine_large_files"  # never in a mode preset, so it always 
 def weekly(days: int = 7, drive: Optional[str] = None) -> Dict:
     since = time.time() - days * 86400
     conn = db.connect()
-    rows = conn.execute("SELECT plan_id, op, dst, size FROM journal WHERE ts >= ? AND undone = 0", (since,)).fetchall()
-    freed = sum(r["size"] or 0 for r in rows if r["op"] in FREEING_OPS)
+    rows = conn.execute("SELECT plan_id, op, dst, size, reason FROM journal WHERE ts >= ? AND undone = 0", (since,)).fetchall()
+    freeing = [r for r in rows if r["op"] in FREEING_OPS and r["reason"] != ARCHIVE_ORIGINAL]
+    freed = sum(r["size"] or 0 for r in freeing)
     moves = [r for r in rows if r["op"] == "move"]
     folders = Counter(Path(r["dst"]).parent.name for r in moves if r["dst"])
     growth = None
@@ -49,7 +53,7 @@ def weekly(days: int = 7, drive: Optional[str] = None) -> Dict:
         "drive": drive,
         "freed_bytes": int(freed),
         "moved_files": len(moves),
-        "cleaned_files": sum(1 for r in rows if r["op"] in FREEING_OPS),
+        "cleaned_files": len(freeing),
         "plans_applied": len({r["plan_id"] for r in rows if r["plan_id"]}),
         "growth_bytes": growth,
         "top_categories": [{"name": n, "files": c} for n, c in folders.most_common(5)],

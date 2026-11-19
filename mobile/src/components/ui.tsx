@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Line, Pattern, Rect } from "react-native-svg";
 
 import type { Decision } from "../lib/api";
+import { human } from "../lib/api";
 import { C, F, onPaletteChange, statusColor } from "../lib/theme";
 
 export function Screen({ children, refreshing, onRefresh }: { children: ReactNode; refreshing?: boolean; onRefresh?: () => void }) {
@@ -102,23 +103,48 @@ export function ErrorBox({ text, onRetry }: { text: string; onRetry?: () => void
   );
 }
 
-/** Used vs free as a shelf: used is solid manila, free is hatched. Matches the PC Overview. */
-export function Shelf({ usedFraction, status }: { usedFraction: number; status?: string }) {
-  const u = Math.min(1, Math.max(0, usedFraction));
+export type ShelfSeg = { name: string; size: number; color: string };
+
+/**
+ * The drive as a shelf, as on the PC Overview: one block per file type (real bytes / capacity),
+ * "Other used" for the rest, free space hatched. Without a scan of this drive: used vs free.
+ */
+export function Shelf({ segments, capacity, status }: { segments: ShelfSeg[]; capacity: number; status?: string }) {
   const edge = status === "critical" ? C.bad : status === "watch" ? C.warn : C.line;
+  let x = 0;
+  const blocks = segments.map((g) => {
+    const w = Math.max((g.size / capacity) * 100, 0.6);
+    const b = { ...g, x, w };
+    x += w;
+    return b;
+  });
+  const free = segments.find((g) => g.name === "Free");
   return (
-    <View accessibilityRole="image" accessibilityLabel={`${Math.round(u * 100)}% used`}
-      style={{ height: 30, marginTop: 14, borderRadius: 6, borderWidth: 1, borderColor: edge, padding: 3, backgroundColor: C.panel }}>
-      <Svg width="100%" height="100%">
-        <Defs>
-          <Pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <Rect width="8" height="8" fill={C.panel2} />
-            <Line x1="0" y1="0" x2="0" y2="8" stroke={C.line} strokeWidth="4" />
-          </Pattern>
-        </Defs>
-        <Rect x="0" y="0" width={`${u * 100}%`} height="100%" rx="3" fill={C.manila} />
-        <Rect x={`${u * 100}%`} y="0" width={`${(1 - u) * 100}%`} height="100%" rx="3" fill="url(#hatch)" />
-      </Svg>
+    <View>
+      <View accessibilityRole="image" accessibilityLabel={segments.map((g) => `${g.name} ${human(g.size)}`).join(", ")}
+        style={{ height: 30, marginTop: 14, borderRadius: 6, borderWidth: 1, borderColor: edge, padding: 3, backgroundColor: C.panel }}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <Pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <Rect width="8" height="8" fill={C.panel2} />
+              <Line x1="0" y1="0" x2="0" y2="8" stroke={C.line} strokeWidth="4" />
+            </Pattern>
+          </Defs>
+          {blocks.map((g) => (
+            <Rect key={g.name} x={`${g.x}%`} y="0" width={`${Math.max(g.w - 0.5, 0.4)}%`} height="100%" rx="2"
+              fill={g === blocks[blocks.length - 1] && free ? "url(#hatch)" : g.color} />
+          ))}
+        </Svg>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
+        {segments.map((g) => (
+          <View key={g.name} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: g.name === "Free" ? C.panel2 : g.color,
+              borderWidth: g.name === "Free" ? 1 : 0, borderColor: C.line }} />
+            <Text style={{ color: C.muted, fontSize: 12 }}>{g.name} {human(g.size)}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

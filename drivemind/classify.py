@@ -58,7 +58,7 @@ class Classification:
 
 
 def classify(path: Path) -> Classification:
-    name, ext = path.name, path.suffix.lower()
+    ext = path.suffix.lower()
     stem = path.stem
     cat = EXT_CATEGORY.get(ext)
     if cat == "Images" and SCREENSHOT_RE.match(stem):
