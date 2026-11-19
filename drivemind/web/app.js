@@ -62,33 +62,29 @@ function seg(current, onPick, disabled = false) {
   return wrap;
 }
 
-function ring(percentUsed, status) {
-  const r = 58, c = 2 * Math.PI * r, used = Math.min(100, Math.max(0, percentUsed));
-  const color = status === "critical" ? "var(--bad)" : status === "watch" ? "var(--warn)" : "var(--accent)";
-  return `<svg class="ring" viewBox="0 0 140 140" role="img" aria-label="${used.toFixed(0)}% used">
-    <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/>
-    <circle class="arc" cx="70" cy="70" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"
-      stroke-dasharray="0 ${c}" data-to="${(c * used) / 100} ${c}" transform="rotate(-90 70 70)"/>
-    <text x="70" y="76" text-anchor="middle">${used.toFixed(0)}%</text>
-    <text x="70" y="96" text-anchor="middle" class="lbl">used</text></svg>`;
-}
-const animateRings = (root = document) => requestAnimationFrame(() => $$(".ring .arc", root).forEach((a) => a.setAttribute("stroke-dasharray", a.dataset.to)));
-
 // ------------------------------------------------------------------ theme --
-const THEMES = ["system", "light", "dark"];
+// System follows Windows (prefers-color-scheme); Light and Dark pin it. Remembered per browser.
+const ICONS = {
+  system: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9 13 13M3 13l1.1-1.1M11.9 4.1 13 3"/></g></svg>',
+  dark: '<svg viewBox="0 0 16 16"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>',
+};
+$$(".t-ico").forEach((n) => (n.innerHTML = ICONS[n.dataset.ico]));
 function applyTheme(t) {
   if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
-  $("#theme-name").textContent = t[0].toUpperCase() + t.slice(1);
-  $("#theme-ico").innerHTML = {
-    system: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
-    light: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9 13 13M3 13l1.1-1.1M11.9 4.1 13 3"/></g></svg>',
-    dark: '<svg viewBox="0 0 16 16"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>' }[t];
+  $$("#theme-seg button").forEach((b) => b.setAttribute("aria-checked", b.dataset.theme === t));
   try { localStorage.setItem("dm-theme", t); } catch (e) { /* storage blocked: theme still applies for this visit */ }
+  if (lastScan !== undefined) renderShelf();
 }
 let theme = "system";
 try { theme = localStorage.getItem("dm-theme") || "system"; } catch (e) {}
-applyTheme(theme);
-$("#theme-btn").onclick = () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme); };
+$$("#theme-seg button").forEach((b) => (b.onclick = () => { theme = b.dataset.theme; applyTheme(theme); }));
+$("#theme-seg").addEventListener("keydown", (e) => {  // arrow keys move between the three, like any radio group
+  const order = ["system", "light", "dark"], i = order.indexOf(theme);
+  const n = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+  if (!n) return;
+  e.preventDefault(); theme = order[(i + n + 3) % 3]; applyTheme(theme); $(`#theme-seg [data-theme="${theme}"]`).focus();
+});
 
 // -------------------------------------------------------------- plan view --
 const sepOf = (p) => (p.includes("\\") ? "\\" : "/");
@@ -155,6 +151,29 @@ function renderPlan(target, plan) {
 
 // --------------------------------------------------------------- overview --
 let status = null, lastScan = null, histDays = 30;
+
+// The drive drawn as a shelf: each segment is real bytes / capacity. File types come from the last
+// scan when it covered this drive; whatever the scan did not see is "Other used". Free space is hatched.
+function renderShelf() {
+  const sys = status && (status.drives.find((d) => d.drive === status.system_drive) || status.drives[0]);
+  if (!sys) return;
+  const cap = sys.used + sys.free;
+  const sameDrive = lastScan && lastScan.root && lastScan.root.toLowerCase().startsWith(sys.drive.toLowerCase());
+  // a file type gets its own block only if it is at least 0.5% of the drive; smaller ones count as "Other used"
+  const types = sameDrive ? (lastScan.categories || []).filter((c) => c.size >= cap * 0.005).slice(0, 6) : [];
+  const typed = types.reduce((a, c) => a + c.size, 0);
+  const segs = types.map((c, i) => ({ name: c.name, size: c.size, cls: `c${(i % 8) + 1}` }));
+  if (sys.used - typed > 0) segs.push({ name: types.length ? "Other used" : "Used", size: sys.used - typed, cls: "used" });
+  segs.push({ name: "Free", size: sys.free, cls: "free" });
+  $("#shelf-drive").textContent = sys.drive;
+  $("#shelf-bar").className = `shelf-bar ${sys.status}`;
+  $("#shelf-bar").setAttribute("aria-label", segs.map((g) => `${g.name} ${human(g.size)}`).join(", "));
+  $("#shelf-bar").innerHTML = segs.map((g) =>
+    `<i class="seg-${g.cls}" style="flex-grow:${Math.max(g.size / cap, 0.004).toFixed(5)}" title="${esc(g.name)}: ${human(g.size)}"></i>`).join("");
+  $("#shelf-legend").innerHTML = segs.map((g) =>
+    `<li><i class="seg-${g.cls}" aria-hidden="true"></i>${esc(g.name)} <b>${human(g.size)}</b></li>`).join("") +
+    (sameDrive ? "" : `<li class="muted">Scan ${esc(sys.drive)} below to split this by file type.</li>`);
+}
 const fullIn = (d) => !d.days_to_full ? (d.trend === "learning" ? "Learning" : "Not filling")
   : d.days_to_full > 365 ? "Over a year" : d.days_to_full > 60 ? `~${Math.round(d.days_to_full / 30)} months` : `~${Math.round(d.days_to_full)} days`;
 
@@ -168,20 +187,12 @@ async function refreshStatus() {
     const msg = { good: "Plenty of room.", watch: "Getting full — worth a clean.", critical: "Almost full — fix this now." }[sys.status];
     $("#home-sub").textContent = `${sys.drive} has ${human(sys.free)} free. ${msg}`;
     Charts.countUp($("#k-free"), sys.free, (v) => human(v));
-    $("#k-free-sub").textContent = `${sys.free_percent}% of ${human(sys.used + sys.free)}`;
+    $("#k-free-sub").textContent = `free of ${human(sys.used + sys.free)}`;
     Charts.countUp($("#k-health"), sys.score, (v) => `${Math.round(v)}/100`);
     $("#k-health-sub").innerHTML = `<span class="pill ${sys.status === "good" ? "yes" : "ask"}">${esc(sys.status)}</span>`;
     $("#k-full").textContent = fullIn(sys);
     $("#k-full-sub").textContent = sys.days_to_full ? "at the current rate" : sys.trend === "learning" ? "needs a few days of history" : "usage is steady";
-    const heroKey = `${sys.free}-${sys.status}`;
-    if ($("#hero").dataset.k !== heroKey) {
-      $("#hero").dataset.k = heroKey;
-      $("#hero").innerHTML = `${ring(100 - sys.free_percent, sys.status)}<div>
-        <p class="big">${esc(sys.drive)}</p>
-        <dl><dt>Free</dt><dd>${human(sys.free)}</dd><dt>Used</dt><dd>${human(sys.used)}</dd><dt>Capacity</dt><dd>${human(sys.used + sys.free)}</dd>
-        <dt>Health</dt><dd>${sys.score}/100</dd></dl></div>`;
-      animateRings($("#hero"));
-    }
+    renderShelf();
   }
   $("#drives").innerHTML = status.drives.map((d) => `<div class="drive"><b>${esc(d.drive)}</b>
     <div class="bar ${d.status}"><i style="width:${100 - d.free_percent}%"></i></div>
@@ -224,11 +235,10 @@ loaders.home = async () => {
 async function loadWeek() {
   const w = await api("/api/report/weekly");
   const growth = w.growth_bytes == null ? "–" : `${w.growth_bytes >= 0 ? "+" : "−"}${human(Math.abs(w.growth_bytes))}`;
-  $("#week-text").textContent = w.text;
   $("#week").innerHTML = [
-    ["Freed", human(w.freed_bytes)], ["Files organized", w.moved_files.toLocaleString()],
-    ["Plans applied", w.plans_applied], ["Drive change", growth],
-  ].map(([k, v]) => `<div class="kpi"><span class="kpi-label">${k}</span><b class="kpi-val">${v}</b></div>`).join("");
+    ["freed", human(w.freed_bytes)], ["files organized", w.moved_files.toLocaleString()],
+    ["plans applied", w.plans_applied], ["drive change", growth],
+  ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join("");
 }
 
 // ------------------------------------------------------------- large files --
@@ -321,6 +331,7 @@ $("#read-btn").onclick = async () => { await api("/api/notices/read", "POST"); l
 let ageBy = "size", sizeBy = "size";
 function renderScan(s) {
   lastScan = s;
+  renderShelf();
   if (!s) {
     Charts.treemap($("#treemap"), []);
     ["#donut", "#ages", "#sizes"].forEach((id) => ($(id).innerHTML = `<p class="muted empty-chart">Appears after a scan.</p>`));
@@ -624,5 +635,6 @@ $("#rule-btn").onclick = (e) => busy(e.target, async () => {
 // mode and version in the sidebar are correct on every page, not only Home
 api("/api/status").then((st) => { $("#mode-pill").textContent = st.mode; $("#ver").textContent = "v" + st.version; }).catch(() => {});
 $("#mcp-cmd").textContent = "claude mcp add drivemind -- python -m drivemind mcp";
+applyTheme(theme);
 show(location.hash.slice(1) || "home");
 liveLoop();

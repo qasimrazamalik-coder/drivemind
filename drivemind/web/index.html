@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>DriveMind</title>
+<link rel="preload" href="/static/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/styles.css">
 <script>try{const t=localStorage.getItem("dm-theme");if(t&&t!=="system")document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="logo" aria-hidden="true"></span>DriveMind</div>
+    <div class="brand"><span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>DriveMind</div>
     <nav id="nav" aria-label="Main">
       <a data-view="home" class="on" href="#home">Overview</a>
       <a data-view="search" href="#search">Search</a>
@@ -26,7 +27,11 @@
       <a data-view="settings" href="#settings">Settings</a>
     </nav>
     <div class="side-foot">
-      <button class="theme-btn" id="theme-btn" aria-label="Switch theme" title="Theme"><span id="theme-ico" aria-hidden="true"></span><span id="theme-name">System</span></button>
+      <div class="theme-seg" id="theme-seg" role="radiogroup" aria-label="Appearance">
+        <button role="radio" data-theme="system" aria-checked="true" title="Follow Windows"><span class="t-ico" data-ico="system" aria-hidden="true"></span>System</button>
+        <button role="radio" data-theme="light" aria-checked="false"><span class="t-ico" data-ico="light" aria-hidden="true"></span>Light</button>
+        <button role="radio" data-theme="dark" aria-checked="false"><span class="t-ico" data-ico="dark" aria-hidden="true"></span>Dark</button>
+      </div>
       <span><span id="mode-pill" class="pill">–</span> <span id="ver" class="muted"></span></span>
     </div>
   </aside>
@@ -37,17 +42,29 @@
       <header class="head row-head"><div><h1>Overview</h1><p class="sub" id="home-sub">Checking your drives…</p></div>
         <span class="live" id="live"><i></i>Live</span></header>
 
-      <div class="kpis">
-        <div class="kpi card"><span class="kpi-label">Free space</span><b class="kpi-val" id="k-free">–</b><span class="kpi-sub" id="k-free-sub"></span></div>
-        <div class="kpi card"><span class="kpi-label">Health</span><b class="kpi-val" id="k-health">–</b><span class="kpi-sub" id="k-health-sub"></span></div>
-        <div class="kpi card"><span class="kpi-label">Full in</span><b class="kpi-val" id="k-full">–</b><span class="kpi-sub" id="k-full-sub"></span></div>
-        <div class="kpi card"><span class="kpi-label">Waiting for you</span><b class="kpi-val" id="k-wait">–</b><span class="kpi-sub" id="k-wait-sub">changes to review</span></div>
-      </div>
+      <section class="shelf" aria-labelledby="k-free">
+        <div class="shelf-top">
+          <div class="shelf-head">
+            <span class="shelf-drive" id="shelf-drive">–</span>
+            <b class="shelf-free" id="k-free">–</b>
+            <span class="shelf-of" id="k-free-sub"></span>
+          </div>
+          <dl class="facts">
+            <div><dt>Health</dt><dd><b id="k-health">–</b> <span id="k-health-sub"></span></dd></div>
+            <div><dt>Full in</dt><dd><b id="k-full">–</b> <span id="k-full-sub"></span></dd></div>
+            <div><dt>Waiting for you</dt><dd><b id="k-wait">–</b> <span id="k-wait-sub">changes to review</span></dd></div>
+          </dl>
+        </div>
+        <div class="shelf-bar" id="shelf-bar" role="img" aria-label="How the drive is used"></div>
+        <ul class="shelf-legend" id="shelf-legend"></ul>
+      </section>
 
       <div class="grid2 wide-left">
         <div class="card"><div class="row-head"><h2>Space over time</h2><div class="seg small" id="range"><button data-days="7">7d</button><button data-days="30" class="on">30d</button><button data-days="90">90d</button></div></div>
           <div id="area" class="chart"></div></div>
-        <div class="card hero" id="hero"></div>
+        <div class="card week"><div class="row-head"><h2>This week</h2></div>
+          <div class="week-grid" id="week"><p class="muted">Loading…</p></div>
+</div>
       </div>
 
       <div class="card">
@@ -68,9 +85,6 @@
         <div class="card"><h2>Top fixes</h2><div id="tips" class="tips"><p class="muted">Looking for the biggest wins…</p></div></div>
         <div class="card"><h2>Big files untouched for 6+ months</h2><div id="stale"><p class="muted">Appears after a scan.</p></div></div>
       </div>
-
-      <div class="card week"><div class="row-head"><h2>This week</h2><span class="muted" id="week-text"></span></div>
-        <div class="kpis small" id="week"><p class="muted">Loading…</p></div></div>
 
       <div class="grid2">
         <div class="card"><h2>Disk health</h2><div id="ssd"><p class="muted">Reading the drives' own health counters…</p></div></div>

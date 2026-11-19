@@ -2,10 +2,10 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { Btn, Card, ErrorBox, H1, Pill, Ring, Screen, s } from "../../components/ui";
+import { Btn, Card, ErrorBox, H1, Pill, Screen, Shelf, s } from "../../components/ui";
 import { ago, human } from "../../lib/api";
 import { useConn, useLoad } from "../../lib/conn";
-import { C } from "../../lib/theme";
+import { C, F } from "../../lib/theme";
 import { useToast } from "../../lib/toast";
 
 export default function Home() {
@@ -55,15 +55,21 @@ export default function Home() {
 
       {d ? (
         <Card>
-          <View style={{ flexDirection: "row", gap: 18, alignItems: "center" }}>
-            <Ring usedPercent={100 - d.free_percent} status={d.status} />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.h2}>Health {d.score}/100</Text>
-              <Pill label={d.status} tone={d.status === "good" ? "yes" : "ask"} />
-              <Text style={[s.text, { marginTop: 6 }]}>{human(d.free)} free on {d.drive}</Text>
-              <Text style={s.muted}>{!d.days_to_full ? (d.trend === "learning" ? "Learning how fast it fills" : "Not filling up")
-                : d.days_to_full > 365 ? "Full in over a year" : d.days_to_full > 60 ? `Full in ~${Math.round(d.days_to_full / 30)} months` : `Full in ~${Math.round(d.days_to_full)} days`}</Text>
+          {/* the drive as a shelf, same as the PC Overview: big free space, then used vs free */}
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+            <Text style={{ backgroundColor: C.manila, color: C.manilaInk, fontFamily: F.display, fontSize: 13, paddingHorizontal: 6,
+              paddingVertical: 2, borderRadius: 4, overflow: "hidden", marginTop: 8 }}>{d.drive}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.text, fontFamily: F.display, fontSize: 44, letterSpacing: -1, lineHeight: 50 }}>{human(d.free)}</Text>
+              <Text style={s.muted}>free of {human(d.used + d.free)}</Text>
             </View>
+          </View>
+          <Shelf usedFraction={1 - d.free_percent / 100} status={d.status} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12 }}>
+            <View><Text style={s.muted}>Health</Text><Text style={[s.h2, { fontFamily: F.display }]}>{d.score}/100</Text></View>
+            <View style={{ alignItems: "flex-end" }}><Text style={s.muted}>Full in</Text>
+              <Text style={[s.h2, { fontFamily: F.display }]}>{!d.days_to_full ? (d.trend === "learning" ? "Learning" : "Not filling")
+                : d.days_to_full > 365 ? "Over a year" : d.days_to_full > 60 ? `~${Math.round(d.days_to_full / 30)} months` : `~${Math.round(d.days_to_full)} days`}</Text></View>
           </View>
           <Text style={[s.muted, { marginTop: 12 }]}>{msg}</Text>
         </Card>

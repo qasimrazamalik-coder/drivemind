@@ -1,10 +1,10 @@
 import { ReactNode } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Defs, Line, Pattern, Rect } from "react-native-svg";
 
 import type { Decision } from "../lib/api";
-import { C, statusColor } from "../lib/theme";
+import { C, F, onPaletteChange, statusColor } from "../lib/theme";
 
 export function Screen({ children, refreshing, onRefresh }: { children: ReactNode; refreshing?: boolean; onRefresh?: () => void }) {
   return (
@@ -65,7 +65,7 @@ export function Seg({ value, onChange, disabled }: { value: Decision; onChange: 
     <View style={[s.seg, disabled && { opacity: 0.5 }]}>
       {opts.map((o, i) => {
         const on = o === value;
-        const bg = on ? (o === "yes" ? "rgba(94,234,212,0.18)" : o === "ask" ? "rgba(251,191,36,0.18)" : C.panel2) : "transparent";
+        const bg = on ? (o === "yes" ? C.accentSoft : o === "ask" ? C.warnSoft : C.panel2) : "transparent";
         const fg = on ? (o === "yes" ? C.accent : o === "ask" ? C.warn : C.text) : C.muted;
         return (
           <Pressable
@@ -80,26 +80,6 @@ export function Seg({ value, onChange, disabled }: { value: Decision; onChange: 
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-export function Ring({ usedPercent, status, size = 132 }: { usedPercent: number; status?: string; size?: number }) {
-  const stroke = 12;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const used = Math.max(0, Math.min(100, usedPercent));
-  return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.line} strokeWidth={stroke} fill="none" />
-        <Circle
-          cx={size / 2} cy={size / 2} r={r} stroke={statusColor(status)} strokeWidth={stroke} fill="none"
-          strokeLinecap="round" strokeDasharray={`${(c * used) / 100} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-      <Text style={{ color: C.text, fontSize: 26, fontWeight: "700" }}>{Math.round(used)}%</Text>
-      <Text style={s.muted}>used</Text>
     </View>
   );
 }
@@ -122,11 +102,32 @@ export function ErrorBox({ text, onRetry }: { text: string; onRetry?: () => void
   );
 }
 
-export const s = StyleSheet.create({
+/** Used vs free as a shelf: used is solid manila, free is hatched. Matches the PC Overview. */
+export function Shelf({ usedFraction, status }: { usedFraction: number; status?: string }) {
+  const u = Math.min(1, Math.max(0, usedFraction));
+  const edge = status === "critical" ? C.bad : status === "watch" ? C.warn : C.line;
+  return (
+    <View accessibilityRole="image" accessibilityLabel={`${Math.round(u * 100)}% used`}
+      style={{ height: 30, marginTop: 14, borderRadius: 6, borderWidth: 1, borderColor: edge, padding: 3, backgroundColor: C.panel }}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <Pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <Rect width="8" height="8" fill={C.panel2} />
+            <Line x1="0" y1="0" x2="0" y2="8" stroke={C.line} strokeWidth="4" />
+          </Pattern>
+        </Defs>
+        <Rect x="0" y="0" width={`${u * 100}%`} height="100%" rx="3" fill={C.manila} />
+        <Rect x={`${u * 100}%`} y="0" width={`${(1 - u) * 100}%`} height="100%" rx="3" fill="url(#hatch)" />
+      </Svg>
+    </View>
+  );
+}
+
+const makeStyles = () => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16, paddingBottom: 40 },
-  h1: { color: C.text, fontSize: 26, fontWeight: "700", letterSpacing: -0.3 },
-  h2: { color: C.text, fontSize: 16, fontWeight: "600" },
+  h1: { color: C.text, fontSize: 28, fontFamily: F.display, letterSpacing: -0.4 },
+  h2: { color: C.text, fontSize: 17, fontFamily: F.strong },
   muted: { color: C.muted, fontSize: 13, lineHeight: 19 },
   text: { color: C.text, fontSize: 15, lineHeight: 21 },
   mono: { color: C.text, fontSize: 12, fontFamily: "monospace" },
@@ -143,3 +144,7 @@ export const s = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 10 },
 });
+
+/** Shared styles. Rebuilt from the active palette whenever the theme changes. */
+export const s = { ...makeStyles() };
+onPaletteChange(() => Object.assign(s, makeStyles()));

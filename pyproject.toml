@@ -32,7 +32,7 @@ drivemind = "drivemind.cli:main"
 include = ["drivemind*"]
 
 [tool.setuptools.package-data]
-drivemind = ["web/*"]
+drivemind = ["web/*", "web/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

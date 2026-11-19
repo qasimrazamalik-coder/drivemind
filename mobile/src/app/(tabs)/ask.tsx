@@ -48,14 +48,14 @@ export default function Ask() {
           {msgs.length === 0 ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {STARTERS.map((q) => (
-                <Pressable key={q} onPress={() => ask(q)} accessibilityRole="button" style={chip}>
+                <Pressable key={q} onPress={() => ask(q)} accessibilityRole="button" style={chip()}>
                   <Text style={{ color: C.text }}>{q}</Text>
                 </Pressable>
               ))}
             </View>
           ) : null}
           {msgs.map((m, i) => (
-            <View key={i} style={m.role === "user" ? userBubble : botBubble}>
+            <View key={i} style={m.role === "user" ? userBubble() : botBubble()}>
               <Text style={{ color: m.role === "user" ? C.accentInk : C.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
               {m.answer?.ai && m.answer.sources.length ? ( /* plain answers already list the files */
                 <View style={{ marginTop: 8, gap: 4 }}>
@@ -67,7 +67,7 @@ export default function Ask() {
               {m.answer?.actions.length ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                   {m.answer.actions.map((a) => (
-                    <Pressable key={a.label} accessibilityRole="button" style={chip}
+                    <Pressable key={a.label} accessibilityRole="button" style={chip()}
                       onPress={() => router.push((PHONE_TARGET[a.target] || "/") as never)}>
                       <Text style={{ color: C.accent }}>{a.label}</Text>
                     </Pressable>
@@ -104,6 +104,6 @@ export default function Ask() {
   );
 }
 
-const chip = { borderWidth: 1, borderColor: C.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.panel };
-const userBubble = { alignSelf: "flex-end" as const, backgroundColor: C.accent, borderRadius: 14, padding: 12, marginVertical: 6, maxWidth: "85%" as const };
-const botBubble = { alignSelf: "flex-start" as const, backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 14, padding: 12, marginVertical: 6, maxWidth: "92%" as const };
+const chip = () => ({ borderWidth: 1, borderColor: C.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.panel });
+const userBubble = () => ({ alignSelf: "flex-end" as const, backgroundColor: C.accent, borderRadius: 14, padding: 12, marginVertical: 6, maxWidth: "85%" as const });
+const botBubble = () => ({ alignSelf: "flex-start" as const, backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 14, padding: 12, marginVertical: 6, maxWidth: "92%" as const });

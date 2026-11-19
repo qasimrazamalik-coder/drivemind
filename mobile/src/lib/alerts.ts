@@ -22,7 +22,7 @@ export async function setupNotifications(): Promise<boolean> {
     await Notifications.setNotificationChannelAsync("drive", {
       name: "Drive alerts",
       importance: Notifications.AndroidImportance.HIGH,
-      lightColor: "#5eead4",
+      lightColor: "#e2b23f",
     });
   }
   const current = await Notifications.getPermissionsAsync();

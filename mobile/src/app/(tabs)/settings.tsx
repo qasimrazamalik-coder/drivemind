@@ -3,9 +3,10 @@ import { Alert, Platform, Pressable, Text, View } from "react-native";
 
 import { Btn, Card, ErrorBox, H1, Screen, Seg, s } from "../../components/ui";
 import { Decision } from "../../lib/api";
+import { useAppearance } from "../../lib/appearance";
 import { disableBackgroundAlerts } from "../../lib/background";
 import { useConn, useLoad } from "../../lib/conn";
-import { C } from "../../lib/theme";
+import { C, ThemePref } from "../../lib/theme";
 import { useToast } from "../../lib/toast";
 
 const MODES = [
@@ -14,8 +15,15 @@ const MODES = [
   { id: "autopilot", name: "Autopilot", desc: "Runs everything except permanent changes." },
 ];
 
+const LOOKS: { id: ThemePref; name: string }[] = [
+  { id: "system", name: "System" },
+  { id: "light", name: "Light" },
+  { id: "dark", name: "Dark" },
+];
+
 export default function Settings() {
   const { api, conn, forget } = useConn();
+  const look = useAppearance();
   const toast = useToast();
   const st = useLoad(api ? api.settings : null, [api], { live: ["settings"], cacheKey: "settings" });
   const mode = st.data?.settings.mode;
@@ -64,13 +72,30 @@ export default function Settings() {
           const on = mode === m.id;
           return (
             <Pressable key={m.id} onPress={() => pickMode(m.id)} accessibilityRole="radio" accessibilityState={{ checked: on }}
-              style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: on ? C.accent : C.line, marginBottom: 8, backgroundColor: on ? "rgba(94,234,212,0.06)" : "transparent" }}>
+              style={{ padding: 12, borderRadius: 8, borderWidth: 1, borderColor: on ? C.text : C.line, borderLeftWidth: on ? 5 : 1,
+                borderLeftColor: on ? C.manila : C.line, marginBottom: 8, backgroundColor: on ? C.panel2 : "transparent" }}>
               <Text style={[s.text, { fontWeight: "700" }]}>{m.name}</Text>
               <Text style={s.muted}>{m.desc}</Text>
             </Pressable>
           );
         })}
         {mode === "custom" ? <Text style={s.muted}>Custom: you changed single switches below.</Text> : null}
+      </Card>
+
+      <Card title="Appearance">
+        <View style={{ flexDirection: "row", borderWidth: 1, borderColor: C.line, borderRadius: 8, overflow: "hidden" }} accessibilityRole="radiogroup">
+          {LOOKS.map((l, i) => {
+            const on = look.pref === l.id;
+            return (
+              <Pressable key={l.id} onPress={() => look.setPref(l.id)} accessibilityRole="radio" accessibilityState={{ checked: on }}
+                style={{ flex: 1, paddingVertical: 10, alignItems: "center", backgroundColor: on ? C.text : "transparent",
+                  borderLeftWidth: i ? 1 : 0, borderLeftColor: C.line }}>
+                <Text style={{ color: on ? C.bg : C.muted, fontWeight: on ? "700" : "500" }}>{l.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[s.muted, { marginTop: 8 }]}>System follows your phone's dark mode setting.</Text>
       </Card>
 
       <Card title="Switches">
